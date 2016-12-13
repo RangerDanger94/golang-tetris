@@ -3,6 +3,8 @@ package tetris
 import (
 	"math/rand"
 	"time"
+
+	"github.com/veandco/go-sdl2/sdl"
 )
 
 const tetronimos int32 = 7
@@ -79,4 +81,9 @@ func NextTGMRandomizer() Tetromino {
 // GetTGMGravityMap get tgm grav rules
 func GetTGMGravityMap() map[int]float64 {
 	return tgmGravity
+}
+
+// SpawnTetromino on the board
+func SpawnTetromino(b []sdl.Rect, t *Tetromino) {
+	t.move(b[3].X, b[3].Y-b[3].H)
 }

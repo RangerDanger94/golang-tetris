@@ -18,46 +18,38 @@ const (
 	Z
 )
 
-// Bounds - generate bounding box
-func bounds(n int, d int32) []sdl.Rect {
-	box := make([]sdl.Rect, n*n)
-	var x, y int32 = 0, 0
-	for i := 1; i <= n*n; i++ {
-		box[i-1] = sdl.Rect{X: x, Y: y, W: d, H: d}
+//
+func (t *Tetromino) setBounds(sX int32, sY int32, d int32) {
+	switch t.shape {
+	case I, O:
+		t.boundaryArea = 4
+	case T, J, L, S, Z:
+		t.boundaryArea = 3
+	}
+
+	t.bounds = make([]sdl.Rect, t.boundaryArea*t.boundaryArea)
+	var x, y int32 = sX, sY
+	for i := 1; i <= t.boundaryArea*t.boundaryArea; i++ {
+		t.bounds[i-1] = sdl.Rect{X: x, Y: y, W: d, H: d}
 		x += d
 
-		if i%n == 0 {
+		if i%t.boundaryArea == 0 {
 			y += d
-			x = 0
+			x = sX
 		}
 	}
-	return box
 }
 
 // Tetromino - tetris block
 type Tetromino struct {
+	shape int32
+	//size         int32
 	color        sdl.Color
-	blocks       [4]sdl.Rect
-	shape        int32
 	orientations int
 	orientation  int
+	boundaryArea int
 	bounds       []sdl.Rect
-}
-
-func (t *Tetromino) MoveRight() {
-	for i := range t.bounds {
-		t.bounds[i].X += t.bounds[i].W
-	}
-
-	t.blocks = t.setOrientation(t.orientation)
-}
-
-func (t *Tetromino) MoveLeft() {
-	for i := range t.bounds {
-		t.bounds[i].X -= t.bounds[i].W
-	}
-
-	t.blocks = t.setOrientation(t.orientation)
+	blocks       [4]sdl.Rect
 }
 
 // Shape - getter for shape
@@ -73,8 +65,8 @@ func ITetromino() Tetromino {
 	t.orientation = 1
 	t.orientations = 2
 	t.color = sdl.Color{R: 0xFF, G: 0x00, B: 0x00, A: 0xFF}
-	t.bounds = bounds(4, 20)
-	t.blocks = t.setOrientation(t.orientation)
+	t.setBounds(0, 0, 20)
+	t.setOrientation(t.orientation)
 	return t
 }
 
@@ -87,8 +79,8 @@ func JTetromino() Tetromino {
 	t.orientation = 1
 	t.orientations = 4
 	t.color = sdl.Color{R: 0x00, G: 0x00, B: 0xFF, A: 0xFF}
-	t.bounds = bounds(3, 20)
-	t.blocks = t.setOrientation(t.orientation)
+	t.setBounds(0, 0, 20)
+	t.setOrientation(t.orientation)
 	return t
 }
 
@@ -101,8 +93,8 @@ func LTetromino() Tetromino {
 	t.orientation = 1
 	t.orientations = 4
 	t.color = sdl.Color{R: 0xEF, G: 0x79, B: 0x21, A: 0xFF}
-	t.bounds = bounds(3, 20)
-	t.blocks = t.setOrientation(t.orientation)
+	t.setBounds(0, 0, 20)
+	t.setOrientation(t.orientation)
 	return t
 }
 
@@ -115,8 +107,8 @@ func OTetromino() Tetromino {
 	t.orientation = 1
 	t.orientations = 1
 	t.color = sdl.Color{R: 0xF7, G: 0xD3, B: 0x08, A: 0xFF}
-	t.bounds = bounds(4, 20)
-	t.blocks = t.setOrientation(t.orientation)
+	t.setBounds(0, 0, 20)
+	t.setOrientation(t.orientation)
 	return t
 }
 
@@ -129,8 +121,8 @@ func TTetromino() Tetromino {
 	t.orientation = 1
 	t.orientations = 4
 	t.color = sdl.Color{R: 0x31, G: 0xC7, B: 0xEF, A: 0xFF}
-	t.bounds = bounds(3, 20)
-	t.blocks = t.setOrientation(t.orientation)
+	t.setBounds(0, 0, 20)
+	t.setOrientation(t.orientation)
 	return t
 }
 
@@ -143,8 +135,8 @@ func STetromino() Tetromino {
 	t.orientation = 1
 	t.orientations = 2
 	t.color = sdl.Color{R: 0xAD, G: 0x4D, B: 0x9C, A: 0xFF}
-	t.bounds = bounds(3, 20)
-	t.blocks = t.setOrientation(t.orientation)
+	t.setBounds(0, 0, 20)
+	t.setOrientation(t.orientation)
 	return t
 }
 
@@ -157,8 +149,8 @@ func ZTetromino() Tetromino {
 	t.orientation = 1
 	t.orientations = 2
 	t.color = sdl.Color{R: 0x00, G: 0xFF, B: 0x00, A: 0xFF}
-	t.bounds = bounds(3, 20)
-	t.blocks = t.setOrientation(t.orientation)
+	t.setBounds(0, 0, 20)
+	t.setOrientation(t.orientation)
 	return t
 }
 
@@ -189,71 +181,67 @@ func GenerateTetronimo(s int32) Tetromino {
 // [6][7][8]	[8 ][9 ][10][11]
 //				[12][13][14][15]
 // Apply rotations according to TGM rotation rules
-func (t Tetromino) setOrientation(o int) [4]sdl.Rect {
-	var r [4]sdl.Rect
-
+func (t *Tetromino) setOrientation(o int) {
 	switch t.shape {
 	case I:
 		switch o {
 		case 1:
-			r = [4]sdl.Rect{t.bounds[4], t.bounds[5], t.bounds[6], t.bounds[7]}
+			t.blocks = [4]sdl.Rect{t.bounds[4], t.bounds[5], t.bounds[6], t.bounds[7]}
 		case 2:
-			r = [4]sdl.Rect{t.bounds[2], t.bounds[6], t.bounds[10], t.bounds[14]}
+			t.blocks = [4]sdl.Rect{t.bounds[2], t.bounds[6], t.bounds[10], t.bounds[14]}
 		}
 	case J:
 		switch o {
 		case 1:
-			r = [4]sdl.Rect{t.bounds[3], t.bounds[4], t.bounds[5], t.bounds[8]}
+			t.blocks = [4]sdl.Rect{t.bounds[3], t.bounds[4], t.bounds[5], t.bounds[8]}
 		case 2:
-			r = [4]sdl.Rect{t.bounds[1], t.bounds[4], t.bounds[7], t.bounds[6]}
+			t.blocks = [4]sdl.Rect{t.bounds[1], t.bounds[4], t.bounds[7], t.bounds[6]}
 		case 3:
-			r = [4]sdl.Rect{t.bounds[3], t.bounds[6], t.bounds[7], t.bounds[8]}
+			t.blocks = [4]sdl.Rect{t.bounds[3], t.bounds[6], t.bounds[7], t.bounds[8]}
 		case 4:
-			r = [4]sdl.Rect{t.bounds[1], t.bounds[4], t.bounds[7], t.bounds[2]}
+			t.blocks = [4]sdl.Rect{t.bounds[1], t.bounds[4], t.bounds[7], t.bounds[2]}
 		}
 	case L:
 		switch o {
 		case 1:
-			r = [4]sdl.Rect{t.bounds[3], t.bounds[4], t.bounds[5], t.bounds[6]}
+			t.blocks = [4]sdl.Rect{t.bounds[3], t.bounds[4], t.bounds[5], t.bounds[6]}
 		case 2:
-			r = [4]sdl.Rect{t.bounds[1], t.bounds[4], t.bounds[7], t.bounds[0]}
+			t.blocks = [4]sdl.Rect{t.bounds[1], t.bounds[4], t.bounds[7], t.bounds[0]}
 		case 3:
-			r = [4]sdl.Rect{t.bounds[5], t.bounds[6], t.bounds[7], t.bounds[8]}
+			t.blocks = [4]sdl.Rect{t.bounds[5], t.bounds[6], t.bounds[7], t.bounds[8]}
 		case 4:
-			r = [4]sdl.Rect{t.bounds[1], t.bounds[4], t.bounds[7], t.bounds[8]}
+			t.blocks = [4]sdl.Rect{t.bounds[1], t.bounds[4], t.bounds[7], t.bounds[8]}
 		}
 	case O:
-		r = [4]sdl.Rect{t.bounds[5], t.bounds[6], t.bounds[9], t.bounds[10]}
+		t.blocks = [4]sdl.Rect{t.bounds[5], t.bounds[6], t.bounds[9], t.bounds[10]}
 	case T:
 		switch o {
 		case 1:
-			r = [4]sdl.Rect{t.bounds[3], t.bounds[4], t.bounds[5], t.bounds[7]}
+			t.blocks = [4]sdl.Rect{t.bounds[3], t.bounds[4], t.bounds[5], t.bounds[7]}
 		case 2:
-			r = [4]sdl.Rect{t.bounds[1], t.bounds[4], t.bounds[7], t.bounds[3]}
+			t.blocks = [4]sdl.Rect{t.bounds[1], t.bounds[4], t.bounds[7], t.bounds[3]}
 		case 3:
-			r = [4]sdl.Rect{t.bounds[4], t.bounds[6], t.bounds[7], t.bounds[8]}
+			t.blocks = [4]sdl.Rect{t.bounds[4], t.bounds[6], t.bounds[7], t.bounds[8]}
 		case 4:
-			r = [4]sdl.Rect{t.bounds[1], t.bounds[4], t.bounds[7], t.bounds[5]}
+			t.blocks = [4]sdl.Rect{t.bounds[1], t.bounds[4], t.bounds[7], t.bounds[5]}
 		}
 	case S:
 		switch o {
 		case 1:
-			r = [4]sdl.Rect{t.bounds[6], t.bounds[7], t.bounds[4], t.bounds[5]}
+			t.blocks = [4]sdl.Rect{t.bounds[6], t.bounds[7], t.bounds[4], t.bounds[5]}
 		case 2:
-			r = [4]sdl.Rect{t.bounds[0], t.bounds[3], t.bounds[4], t.bounds[7]}
+			t.blocks = [4]sdl.Rect{t.bounds[0], t.bounds[3], t.bounds[4], t.bounds[7]}
 		}
 
 	case Z:
 		switch o {
 		case 1:
-			r = [4]sdl.Rect{t.bounds[3], t.bounds[4], t.bounds[7], t.bounds[8]}
+			t.blocks = [4]sdl.Rect{t.bounds[3], t.bounds[4], t.bounds[7], t.bounds[8]}
 		case 2:
-			r = [4]sdl.Rect{t.bounds[4], t.bounds[7], t.bounds[5], t.bounds[2]}
+			t.blocks = [4]sdl.Rect{t.bounds[4], t.bounds[7], t.bounds[5], t.bounds[2]}
 		}
 
 	}
-
-	return r
 }
 
 // Blocks - Returns a slice of the rects that make up the tetromino
@@ -264,18 +252,6 @@ func (t Tetromino) Blocks() []sdl.Rect {
 // Color - Returns tetromino color
 func (t Tetromino) Color() sdl.Color {
 	return t.color
-}
-
-// Rotate - rotates the tetromino according to TGM rotation rules
-func (t *Tetromino) rotate(d float64) {
-	for i, pos := range t.blocks {
-		var oX, oY int32 = (pos.W * 3) / 2, (pos.W * 3) / 2
-		fmt.Printf("Origin X&Y:\t%v\n", oX)
-		dX, dY := oX-pos.X, oY-pos.Y
-
-		t.blocks[i].X = int32(cosDegrees(d)*float64(dX)) + int32(-sinDegrees(d)*float64(dY)) + oX
-		t.blocks[i].Y = int32(sinDegrees(d)*float64(dX)) + int32(cosDegrees(d)*float64(dY)) + oY
-	}
 }
 
 // Resize - scale the termino
@@ -294,14 +270,52 @@ func (t *Tetromino) Resize(d int32) {
 	}
 }
 
+func (t *Tetromino) move(x int32, y int32) {
+	t.setBounds(x, y, 20)
+	t.setOrientation(t.orientation)
+}
+
+func (t *Tetromino) MoveRight() {
+	t.move(t.bounds[0].X+20, t.bounds[0].Y)
+}
+
+func (t *Tetromino) MoveLeft() {
+	t.move(t.bounds[0].X-20, t.bounds[0].Y)
+}
+
+func (t *Tetromino) Drop() {
+	t.move(t.bounds[0].X, t.bounds[0].Y+20)
+}
+
+// Draw - draw to passed in renderer
+func (t Tetromino) Draw(r *sdl.Renderer) {
+	r.SetDrawColor(0x0, 0x0, 0x0, t.color.A)
+	r.FillRects(t.bounds)
+
+	r.SetDrawColor(t.color.R, t.color.G, t.color.B, t.color.A)
+	r.FillRects(t.Blocks())
+}
+
+// Rotate - rotates the tetromino according to TGM rotation rules
+func (t *Tetromino) rotate(d float64) {
+	for i, pos := range t.blocks {
+		var oX, oY int32 = (pos.W * 3) / 2, (pos.W * 3) / 2
+		fmt.Printf("Origin X&Y:\t%v\n", oX)
+		dX, dY := oX-pos.X, oY-pos.Y
+
+		t.blocks[i].X = int32(cosDegrees(d)*float64(dX)) + int32(-sinDegrees(d)*float64(dY)) + oX
+		t.blocks[i].Y = int32(sinDegrees(d)*float64(dX)) + int32(cosDegrees(d)*float64(dY)) + oY
+	}
+}
+
 // RotateClockwise - calls rotate with input of 90
 func (t *Tetromino) RotateClockwise() {
 	t.orientation++
 	if t.orientation > t.orientations {
 		t.orientation = 1
 	}
-	fmt.Printf("Orientation is %v\n", t.orientation)
-	t.blocks = t.setOrientation(t.orientation)
+
+	t.setOrientation(t.orientation)
 }
 
 // RotateCounterClockwise - calls rotate with input of 270
@@ -310,26 +324,8 @@ func (t *Tetromino) RotateCounterClockwise() {
 	if t.orientation < 1 {
 		t.orientation = t.orientations
 	}
-	fmt.Printf("Orientation is %v\n", t.orientation)
-	t.blocks = t.setOrientation(t.orientation)
-}
 
-// Drop - tetromino falls one grid space
-func (t *Tetromino) Drop() {
-	for i := range t.bounds {
-		t.bounds[i].Y += t.bounds[i].H
-	}
-
-	t.blocks = t.setOrientation(t.orientation)
-}
-
-// Draw - draw to passed in renderer
-func (t *Tetromino) Draw(r *sdl.Renderer) {
-	r.SetDrawColor(0x0, 0x0, 0x0, t.color.A)
-	r.FillRects(t.bounds)
-
-	r.SetDrawColor(t.color.R, t.color.G, t.color.B, t.color.A)
-	r.FillRects(t.Blocks())
+	t.setOrientation(t.orientation)
 }
 
 func cosDegrees(d float64) float64 {

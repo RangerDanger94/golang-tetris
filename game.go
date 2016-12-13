@@ -37,6 +37,17 @@ func createBoard() []sdl.Rect {
 	return board
 }
 
+// Assumes rects fill X and then Y [][][] ->
+func createGround(b []sdl.Rect) []sdl.Rect {
+	ground := make([]sdl.Rect, gXLength)
+	for i, c := gXLength*gYLength, 0; i < gXLength*gYLength+gXLength; i++ {
+		ground[c].X, ground[c].Y = b[i].X, b[i].Y+gSize
+		ground[c].W, ground[c].W = gSize, gSize
+	}
+
+	return ground
+}
+
 func main() {
 	sdl.Init(sdl.INIT_EVERYTHING)
 
@@ -58,14 +69,23 @@ func main() {
 	}
 	defer renderer.Destroy()
 
-	level := 251
+	level := 0
 	gm := tetris.GetTGMGravityMap()
 	g, gCounter := gm[level]/256, 0.0
+
 	fmt.Printf("G = %v\n", g)
 	tetris.ResetTGMRandomizer()
 	b := createBoard()
+	//ground := createGround(b)
 	activePiece := tetris.NextTGMRandomizer()
 	activePiece.Resize(gSize)
+	tetris.SpawnTetromino(b, &activePiece)
+
+	newPiece := activePiece
+	newPiece.MoveRight()
+	newPiece.MoveRight()
+	newPiece.MoveRight()
+	newPiece.MoveRight()
 	//nextPiece := tetris.NextTGMRandomizer()
 
 	// Main Loop
@@ -91,21 +111,23 @@ func main() {
 			}
 		}
 
+		// Gravity update
 		gCounter += g
 		if gCounter >= 1.0 {
-
+			activePiece.Drop()
 			gCounter = 0.0
 		}
+
+		newPiece.Drop()
 
 		renderer.SetDrawColor(0, 128, 255, 255)
 		renderer.Clear()
 		renderer.SetDrawColor(0x0, 0x0, 0x0, 0xFF)
 		renderer.FillRects(b)
 		activePiece.Draw(renderer)
+		newPiece.Draw(renderer)
 
 		renderer.Present()
-
-		// Increment gCounter by gravity rules
 
 		if frameTime := sdl.GetTicks() - frameStart; frameTime < delayTime {
 			sdl.Delay(delayTime - frameTime)
