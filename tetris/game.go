@@ -4,6 +4,8 @@ import (
 	"fmt"
 	"math/rand"
 	"time"
+
+	"github.com/veandco/go-sdl2/sdl"
 )
 
 const tetronimos int32 = 7
@@ -15,24 +17,43 @@ const gSize int32 = 20
 const gStartX int32 = 640/2 - (int32(gXLength)*gSize)/2
 const gStartY int32 = 0
 
-type Game struct {
-	activePiece Tetromino
-	nextPiece   Tetromino
-	holdPiece   Tetromino
-	board       Grid
+type coloredRect struct {
+	color sdl.Color
+	rect  sdl.Rect
+}
 
-	areFrames   int
-	dasFrames   int
-	lockFrames  int
-	clearFrames int
-	gravFrames  float64
+type Game struct {
+	activePiece  Tetromino
+	nextPiece    Tetromino
+	holdPiece    Tetromino
+	board        Grid
+	lockedPieces []coloredRect
+
+	areFrames             int
+	dasFrames             int
+	lockDelay, lockFrames int
+	clearFrames           int
+	gravFrames            float64
 
 	level   int
 	gravity float64
 }
 
+// ProcessFrame runs the game logic for a frame
 func (g *Game) ProcessFrame() {
 	g.doGravity()
+	g.checkLock()
+}
+
+// Draw renders the game using an sdl.Renderer
+func (g *Game) Draw(r *sdl.Renderer) {
+	g.board.Draw(r)
+	g.activePiece.Draw(r)
+
+	for _, v := range g.lockedPieces {
+		r.SetDrawColor(v.color.R, v.color.G, v.color.B, v.color.A)
+		r.FillRect(&v.rect)
+	}
 }
 
 func (g *Game) doGravity() {
@@ -41,38 +62,108 @@ func (g *Game) doGravity() {
 		if i > g.level {
 			break
 		}
-		g.gravity = v
+		g.gravity = v / 256
 	}
 
 	g.gravFrames += g.gravity
 
 	for g.gravFrames >= 1 {
-		g.activePiece.Drop()
+		g.Drop()
 		g.gravFrames--
+	}
+
+	fmt.Printf("Gravity: %v", g.gravity)
+}
+
+func (g *Game) checkLock() {
+	testPiece := g.activePiece
+	testPiece.Drop()
+
+	if g.collision(testPiece) {
+		g.lockFrames++
+	} else {
+		g.lockFrames = 0
+	}
+
+	if g.lockFrames >= g.lockDelay {
+		locked := make([]coloredRect, len(g.activePiece.Blocks()))
+		for i, v := range g.activePiece.Blocks() {
+			locked[i].rect, locked[i].color = v, g.activePiece.Color()
+		}
+
+		g.lockedPieces = append(g.lockedPieces, locked...)
+		g.nextTetromino()
 	}
 }
 
-func (g Game) ActivePiece() Tetromino {
-	return g.activePiece
-}
-
+// Drop tries to lower the active piece
 func (g *Game) Drop() {
-	g.activePiece.Drop()
+	testPiece := g.activePiece
+	testPiece.Drop()
+
+	if !g.collision(testPiece) {
+		g.activePiece.Drop()
+	}
 }
 
-func (g Game) Board() Grid {
-	return g.board
+func (g Game) collisionRects() []sdl.Rect {
+	c := make([]sdl.Rect, len(g.lockedPieces))
+	for i, v := range g.lockedPieces {
+		c[i] = v.rect
+	}
+	return c
+}
+
+// collision checks if a tetromino is colliding with the following
+// 1. Locked pieces
+// 2. Board edges
+func (g *Game) collision(t Tetromino) bool {
+	hit := false
+
+	// Check tetromino outside the board
+	for _, v := range t.Blocks() {
+		if v.X < g.board.X() || v.X >= g.board.X()+g.board.PixelWidth() {
+			hit = true
+			break
+		} else if v.Y < g.board.Y() || v.Y >= g.board.Y()+g.board.PixelHeight() {
+			hit = true
+			break
+		}
+	}
+
+	// Check collision with any locked pieces
+	for _, i := range t.Blocks() {
+		for _, j := range g.collisionRects() {
+			if i.HasIntersection(&j) {
+				hit = true
+				break
+			}
+		}
+
+		if hit {
+			break
+		}
+	}
+
+	return hit
 }
 
 func (g *Game) Start() {
 	ResetTGMRandomizer()
 	g.level = 0
+	g.areFrames = 30
+	g.dasFrames = 14
+	g.lockDelay, g.lockFrames = 30, 0
+	g.clearFrames = 41
+
 	g.board = NewGrid(gStartX, gStartY, gSize, gXLength, gYLength)
+	g.lockedPieces = make([]coloredRect, g.board.Area())
 	g.activePiece, g.nextPiece = NextTGMRandomizer(), NextTGMRandomizer()
 	g.SpawnTetromino(&g.activePiece)
 }
 
-func (g *Game) NextTetromino() {
+// gets the next tetromino from the randomizer
+func (g *Game) nextTetromino() {
 	g.activePiece = g.nextPiece
 	g.nextPiece = NextTGMRandomizer()
 	g.SpawnTetromino(&g.activePiece)
@@ -94,15 +185,7 @@ func (g *Game) BufferShift(right bool) {
 		testPiece.ShiftLeft()
 	}
 
-	valid := true
-
-	for _, v := range testPiece.Blocks() {
-		if v.X < g.board.X() || v.X >= g.board.X()+g.board.PixelWidth() {
-			valid = false
-		}
-	}
-
-	if valid {
+	if !g.collision(testPiece) {
 		if right {
 			g.activePiece.ShiftRight()
 		} else {
@@ -122,21 +205,13 @@ func (g *Game) BufferRotate(clockwise bool) {
 	}
 
 	testRotation := func(t Tetromino) bool {
-		valid := true
-
 		if clockwise {
 			t.RotateClockwise()
 		} else {
 			t.RotateCounterClockwise()
 		}
 
-		for _, v := range t.Blocks() {
-			if v.X < g.board.X() || v.X >= g.board.X()+g.board.PixelWidth() {
-				valid = false
-			}
-		}
-
-		return valid
+		return !g.collision(t)
 	}
 
 	if testRotation(g.activePiece) {

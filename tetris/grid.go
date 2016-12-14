@@ -96,8 +96,3 @@ func (g Grid) Ground() []sdl.Rect {
 
 	return ground
 }
-
-// SpawnTetromino on the grid
-func (g Grid) SpawnTetromino(t *Tetromino) {
-	t.move(g.cells[3].X, g.cells[3].Y-g.cellSize)
-}

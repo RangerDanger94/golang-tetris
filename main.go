@@ -33,16 +33,8 @@ func main() {
 		panic(err)
 	}
 	defer renderer.Destroy()
-
-	level := 0
-	gm := tetris.GetTGMGravityMap()
-	g, gCounter := gm[level]/256, 0.0
-
 	var foo tetris.Game
 	foo.Start()
-
-	//lockFrames := 0
-	lockedPieces := make([]sdl.Rect, foo.Board().Area())
 
 	// Main Loop
 	running := true
@@ -69,69 +61,13 @@ func main() {
 			}
 		}
 
-		// Gravity update
-		gCounter += g
-		if gCounter >= 1.0 {
-			foo.Drop()
-			gCounter = 0.0
-		}
+		foo.ProcessFrame()
 
 		renderer.SetDrawColor(0, 128, 255, 255)
 		renderer.Clear()
 
-		foo.Board().Draw(renderer)
-
-		// Lock
-		// testPiece := activePiece
-		// testPiece.Drop()
-		// collision := false
-		// for _, t := range testPiece.Blocks() {
-		// 	for _, g := range board.Ground() {
-		// 		if t.HasIntersection(&g) {
-		// 			collision = true
-		// 			break
-		// 		}
-		// 	}
-
-		// 	if collision {
-		// 		break
-		// 	}
-		// }
-
-		// if collision {
-		// 	lockFrames++
-		// } else {
-		// 	lockFrames = 0
-		// }
-
-		// // Lock and get next piece
-		// if lockFrames >= lockDelay {
-		// 	lockedPieces = append(lockedPieces, activePiece.Blocks()...)
-
-		// 	for x := 1; x < board.Width(); x++ {
-		// 		for y := x; y < board.Area(); y += board.Width() {
-		// 			c := false
-		// 			for j := 0; j < len(lockedPieces)-1; j++ {
-		// 				if board.Cells()[y].HasIntersection(&lockedPieces[j]) {
-		// 					//ground[x] = lockedPieces[j]
-		// 					c = true
-		// 					break
-		// 				}
-		// 			}
-
-		// 			if c {
-		// 				break
-		// 			}
-		// 		}
-		// 	}
-
-		// 	game.NextTetromino()
-		// }
-
-		// Draw tetrominos
-		foo.ActivePiece().Draw(renderer)
-		//nextPiece.Draw(renderer)
-		renderer.FillRects(lockedPieces)
+		// Draw game
+		foo.Draw(renderer)
 
 		renderer.Present()
 
