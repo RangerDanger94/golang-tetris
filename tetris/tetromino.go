@@ -19,22 +19,15 @@ const (
 )
 
 //
-func (t *Tetromino) setBounds(sX int32, sY int32, d int32) {
-	switch t.shape {
-	case I, O:
-		t.boundaryArea = 4
-	case T, J, L, S, Z:
-		t.boundaryArea = 3
-	}
-
+func (t *Tetromino) setBounds(sX int32, sY int32) {
 	t.bounds = make([]sdl.Rect, t.boundaryArea*t.boundaryArea)
 	var x, y int32 = sX, sY
 	for i := 1; i <= t.boundaryArea*t.boundaryArea; i++ {
-		t.bounds[i-1] = sdl.Rect{X: x, Y: y, W: d, H: d}
-		x += d
+		t.bounds[i-1] = sdl.Rect{X: x, Y: y, W: t.size, H: t.size}
+		x += t.size
 
 		if i%t.boundaryArea == 0 {
-			y += d
+			y += t.size
 			x = sX
 		}
 	}
@@ -42,8 +35,8 @@ func (t *Tetromino) setBounds(sX int32, sY int32, d int32) {
 
 // Tetromino - tetris block
 type Tetromino struct {
-	shape int32
-	//size         int32
+	shape        int32
+	size         int32
 	color        sdl.Color
 	orientations int
 	orientation  int
@@ -62,10 +55,12 @@ func (t Tetromino) Shape() int32 {
 func ITetromino() Tetromino {
 	var t Tetromino
 	t.shape = I
+	t.size = 10
 	t.orientation = 1
 	t.orientations = 2
 	t.color = sdl.Color{R: 0xFF, G: 0x00, B: 0x00, A: 0xFF}
-	t.setBounds(0, 0, 20)
+	t.boundaryArea = 4
+	t.setBounds(0, 0)
 	t.setOrientation(t.orientation)
 	return t
 }
@@ -76,10 +71,12 @@ func ITetromino() Tetromino {
 func JTetromino() Tetromino {
 	var t Tetromino
 	t.shape = J
+	t.size = 10
 	t.orientation = 1
 	t.orientations = 4
 	t.color = sdl.Color{R: 0x00, G: 0x00, B: 0xFF, A: 0xFF}
-	t.setBounds(0, 0, 20)
+	t.boundaryArea = 3
+	t.setBounds(0, 0)
 	t.setOrientation(t.orientation)
 	return t
 }
@@ -90,10 +87,12 @@ func JTetromino() Tetromino {
 func LTetromino() Tetromino {
 	var t Tetromino
 	t.shape = L
+	t.size = 10
 	t.orientation = 1
 	t.orientations = 4
 	t.color = sdl.Color{R: 0xEF, G: 0x79, B: 0x21, A: 0xFF}
-	t.setBounds(0, 0, 20)
+	t.boundaryArea = 3
+	t.setBounds(0, 0)
 	t.setOrientation(t.orientation)
 	return t
 }
@@ -104,10 +103,12 @@ func LTetromino() Tetromino {
 func OTetromino() Tetromino {
 	var t Tetromino
 	t.shape = O
+	t.size = 10
 	t.orientation = 1
 	t.orientations = 1
 	t.color = sdl.Color{R: 0xF7, G: 0xD3, B: 0x08, A: 0xFF}
-	t.setBounds(0, 0, 20)
+	t.boundaryArea = 4
+	t.setBounds(0, 0)
 	t.setOrientation(t.orientation)
 	return t
 }
@@ -118,10 +119,12 @@ func OTetromino() Tetromino {
 func TTetromino() Tetromino {
 	var t Tetromino
 	t.shape = T
+	t.size = 10
 	t.orientation = 1
 	t.orientations = 4
 	t.color = sdl.Color{R: 0x31, G: 0xC7, B: 0xEF, A: 0xFF}
-	t.setBounds(0, 0, 20)
+	t.boundaryArea = 3
+	t.setBounds(0, 0)
 	t.setOrientation(t.orientation)
 	return t
 }
@@ -132,10 +135,12 @@ func TTetromino() Tetromino {
 func STetromino() Tetromino {
 	var t Tetromino
 	t.shape = S
+	t.size = 10
 	t.orientation = 1
 	t.orientations = 2
 	t.color = sdl.Color{R: 0xAD, G: 0x4D, B: 0x9C, A: 0xFF}
-	t.setBounds(0, 0, 20)
+	t.boundaryArea = 3
+	t.setBounds(0, 0)
 	t.setOrientation(t.orientation)
 	return t
 }
@@ -146,16 +151,18 @@ func STetromino() Tetromino {
 func ZTetromino() Tetromino {
 	var t Tetromino
 	t.shape = Z
+	t.size = 10
 	t.orientation = 1
 	t.orientations = 2
 	t.color = sdl.Color{R: 0x00, G: 0xFF, B: 0x00, A: 0xFF}
-	t.setBounds(0, 0, 20)
+	t.boundaryArea = 3
+	t.setBounds(0, 0)
 	t.setOrientation(t.orientation)
 	return t
 }
 
 // GenerateTetronimo creates a tetronimo of the given type
-func GenerateTetronimo(s int32) Tetromino {
+func generateTetronimo(s int32) Tetromino {
 	switch s {
 	case I:
 		return ITetromino()
@@ -244,17 +251,17 @@ func (t *Tetromino) setOrientation(o int) {
 	}
 }
 
-// Blocks - Returns a slice of the rects that make up the tetromino
+// Blocks returns blocks that make up actual Tetromino
 func (t Tetromino) Blocks() []sdl.Rect {
 	return t.blocks[:]
 }
 
-// Color - Returns tetromino color
+// Color returns tetromino color
 func (t Tetromino) Color() sdl.Color {
 	return t.color
 }
 
-// Resize - scale the termino
+// Resize scales the tetromino and its bounding box
 func (t *Tetromino) Resize(d int32) {
 	for i := range t.bounds {
 		if t.bounds[i].X != 0 {
@@ -268,26 +275,31 @@ func (t *Tetromino) Resize(d int32) {
 		t.bounds[i].W = d
 		t.bounds[i].H = d
 	}
+
+	t.size = d
 }
 
 func (t *Tetromino) move(x int32, y int32) {
-	t.setBounds(x, y, 20)
+	t.setBounds(x, y)
 	t.setOrientation(t.orientation)
 }
 
-func (t *Tetromino) MoveRight() {
+// ShiftRight shifts tetromino to the right 1 grid space
+func (t *Tetromino) ShiftRight() {
 	t.move(t.bounds[0].X+20, t.bounds[0].Y)
 }
 
-func (t *Tetromino) MoveLeft() {
+// ShiftLeft shifts tetromino to the left 1 grid space
+func (t *Tetromino) ShiftLeft() {
 	t.move(t.bounds[0].X-20, t.bounds[0].Y)
 }
 
+// Drop drops Tetromino 1 grid space
 func (t *Tetromino) Drop() {
 	t.move(t.bounds[0].X, t.bounds[0].Y+20)
 }
 
-// Draw - draw to passed in renderer
+// Draw uses passed in renderer to draw tetromino
 func (t Tetromino) Draw(r *sdl.Renderer) {
 	r.SetDrawColor(0x0, 0x0, 0x0, t.color.A)
 	r.FillRects(t.bounds)
@@ -296,19 +308,7 @@ func (t Tetromino) Draw(r *sdl.Renderer) {
 	r.FillRects(t.Blocks())
 }
 
-// Rotate - rotates the tetromino according to TGM rotation rules
-func (t *Tetromino) rotate(d float64) {
-	for i, pos := range t.blocks {
-		var oX, oY int32 = (pos.W * 3) / 2, (pos.W * 3) / 2
-		fmt.Printf("Origin X&Y:\t%v\n", oX)
-		dX, dY := oX-pos.X, oY-pos.Y
-
-		t.blocks[i].X = int32(cosDegrees(d)*float64(dX)) + int32(-sinDegrees(d)*float64(dY)) + oX
-		t.blocks[i].Y = int32(sinDegrees(d)*float64(dX)) + int32(cosDegrees(d)*float64(dY)) + oY
-	}
-}
-
-// RotateClockwise - calls rotate with input of 90
+// RotateClockwise rotates tetromino clockwise
 func (t *Tetromino) RotateClockwise() {
 	t.orientation++
 	if t.orientation > t.orientations {
@@ -318,7 +318,7 @@ func (t *Tetromino) RotateClockwise() {
 	t.setOrientation(t.orientation)
 }
 
-// RotateCounterClockwise - calls rotate with input of 270
+// RotateCounterClockwise rotates tetromino counter-clockwise
 func (t *Tetromino) RotateCounterClockwise() {
 	t.orientation--
 	if t.orientation < 1 {
@@ -326,6 +326,18 @@ func (t *Tetromino) RotateCounterClockwise() {
 	}
 
 	t.setOrientation(t.orientation)
+}
+
+// 2D matrix rotations
+func (t *Tetromino) rotate(d float64) {
+	for i, pos := range t.blocks {
+		var oX, oY int32 = (pos.W * 3) / 2, (pos.W * 3) / 2
+		fmt.Printf("Origin X&Y:\t%v\n", oX)
+		dX, dY := oX-pos.X, oY-pos.Y
+
+		t.blocks[i].X = int32(cosDegrees(d)*float64(dX)) + int32(-sinDegrees(d)*float64(dY)) + oX
+		t.blocks[i].Y = int32(sinDegrees(d)*float64(dX)) + int32(cosDegrees(d)*float64(dY)) + oY
+	}
 }
 
 func cosDegrees(d float64) float64 {

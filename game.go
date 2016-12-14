@@ -40,7 +40,8 @@ func createBoard() []sdl.Rect {
 // Assumes rects fill X and then Y [][][] ->
 func createGround(b []sdl.Rect) []sdl.Rect {
 	ground := make([]sdl.Rect, gXLength)
-	for i, c := gXLength*gYLength, 0; i < gXLength*gYLength+gXLength; i++ {
+	for i, c := gXLength*gYLength-gXLength, 0; i < gXLength*gYLength; i, c = i += 1, c += 1 {
+		fmt.Printf("i:%v, c:%v\n", i, c)
 		ground[c].X, ground[c].Y = b[i].X, b[i].Y+gSize
 		ground[c].W, ground[c].W = gSize, gSize
 	}
@@ -76,17 +77,11 @@ func main() {
 	fmt.Printf("G = %v\n", g)
 	tetris.ResetTGMRandomizer()
 	b := createBoard()
-	//ground := createGround(b)
-	activePiece := tetris.NextTGMRandomizer()
+	ground := createGround(b)
+	fmt.Printf("%v", ground)
+	activePiece, nextPiece := tetris.NextTGMRandomizer(), tetris.NextTGMRandomizer()
 	activePiece.Resize(gSize)
 	tetris.SpawnTetromino(b, &activePiece)
-
-	newPiece := activePiece
-	newPiece.MoveRight()
-	newPiece.MoveRight()
-	newPiece.MoveRight()
-	newPiece.MoveRight()
-	//nextPiece := tetris.NextTGMRandomizer()
 
 	// Main Loop
 	running := true
@@ -98,9 +93,9 @@ func main() {
 			case *sdl.KeyDownEvent:
 				switch t.Keysym.Sym {
 				case sdl.K_LEFT:
-					activePiece.MoveLeft()
+					activePiece.ShiftLeft()
 				case sdl.K_RIGHT:
-					activePiece.MoveRight()
+					activePiece.ShiftRight()
 				case sdl.K_UP:
 					activePiece.RotateClockwise()
 				case sdl.K_DOWN:
@@ -118,14 +113,25 @@ func main() {
 			gCounter = 0.0
 		}
 
-		newPiece.Drop()
-
 		renderer.SetDrawColor(0, 128, 255, 255)
 		renderer.Clear()
+
+		// Draw grid
 		renderer.SetDrawColor(0x0, 0x0, 0x0, 0xFF)
 		renderer.FillRects(b)
+
+		// // Lock
+		// testPiece := activePiece
+		// testPiece.Drop()
+		// for _, t := range testPiece.Blocks() {
+		// 	for _, g := range ground {
+		// 		t.HasIntersection(&g)
+		// 	}
+		// }
+
+		// Draw tetrominos
 		activePiece.Draw(renderer)
-		newPiece.Draw(renderer)
+		nextPiece.Draw(renderer)
 
 		renderer.Present()
 

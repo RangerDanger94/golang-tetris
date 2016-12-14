@@ -1,6 +1,7 @@
 package tetris
 
 import (
+	"fmt"
 	"math/rand"
 	"time"
 
@@ -75,7 +76,9 @@ func NextTGMRandomizer() Tetromino {
 	}
 	tgmBagHistory = append([]int32{tS}, tgmBagHistory[1:4]...)
 	tgmFirstPiece = false
-	return GenerateTetronimo(tS)
+
+	fmt.Printf("Termino: %v\n", tS)
+	return generateTetronimo(tS)
 }
 
 // GetTGMGravityMap get tgm grav rules
