@@ -301,8 +301,8 @@ func (t *Tetromino) Drop() {
 
 // Draw uses passed in renderer to draw tetromino
 func (t Tetromino) Draw(r *sdl.Renderer) {
-	r.SetDrawColor(0x0, 0x0, 0x0, t.color.A)
-	r.FillRects(t.bounds)
+	// r.SetDrawColor(0x0, 0x0, 0x0, t.color.A)
+	// r.FillRects(t.bounds)
 
 	r.SetDrawColor(t.color.R, t.color.G, t.color.B, t.color.A)
 	r.FillRects(t.Blocks())

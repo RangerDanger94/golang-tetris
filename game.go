@@ -40,10 +40,10 @@ func createBoard() []sdl.Rect {
 // Assumes rects fill X and then Y [][][] ->
 func createGround(b []sdl.Rect) []sdl.Rect {
 	ground := make([]sdl.Rect, gXLength)
-	for i, c := gXLength*gYLength-gXLength, 0; i < gXLength*gYLength; i, c = i += 1, c += 1 {
-		fmt.Printf("i:%v, c:%v\n", i, c)
+	for i, c := gXLength*gYLength-gXLength, 0; i < gXLength*gYLength; i++ {
 		ground[c].X, ground[c].Y = b[i].X, b[i].Y+gSize
-		ground[c].W, ground[c].W = gSize, gSize
+		ground[c].W, ground[c].H = gSize, gSize*5
+		c++
 	}
 
 	return ground
@@ -74,11 +74,12 @@ func main() {
 	gm := tetris.GetTGMGravityMap()
 	g, gCounter := gm[level]/256, 0.0
 
-	fmt.Printf("G = %v\n", g)
 	tetris.ResetTGMRandomizer()
 	b := createBoard()
 	ground := createGround(b)
-	fmt.Printf("%v", ground)
+	const lockDelay int = 31
+	lockFrames := 0
+	var lockedPieces []sdl.Rect = make([]sdl.Rect, gXLength*gYLength)
 	activePiece, nextPiece := tetris.NextTGMRandomizer(), tetris.NextTGMRandomizer()
 	activePiece.Resize(gSize)
 	tetris.SpawnTetromino(b, &activePiece)
@@ -100,6 +101,8 @@ func main() {
 					activePiece.RotateClockwise()
 				case sdl.K_DOWN:
 					activePiece.RotateCounterClockwise()
+				case sdl.K_SPACE:
+					activePiece.Drop()
 				}
 			case *sdl.QuitEvent:
 				running = false
@@ -121,17 +124,63 @@ func main() {
 		renderer.FillRects(b)
 
 		// // Lock
-		// testPiece := activePiece
-		// testPiece.Drop()
-		// for _, t := range testPiece.Blocks() {
-		// 	for _, g := range ground {
-		// 		t.HasIntersection(&g)
-		// 	}
-		// }
+		testPiece := activePiece
+		testPiece.Drop()
+		collision := false
+		for _, t := range testPiece.Blocks() {
+			for _, g := range ground {
+				if t.HasIntersection(&g) {
+					collision = true
+					break
+				}
+			}
+
+			if collision {
+				break
+			}
+		}
+
+		if collision {
+			lockFrames++
+		} else {
+			lockFrames = 0
+		}
+
+		// Lock and get next piece
+		if lockFrames >= lockDelay {
+			lockedPieces = append(lockedPieces, activePiece.Blocks()...)
+		
+			for x := 1; x < int(gXLength); x++ {
+				for y := x; y < int(gXLength*gYLength); y += int(gXLength) {
+					//fmt.Printf("X:%v, Y:%v\n", x, y)
+					c := false
+					for j := 0; j < len(lockedPieces) - 1; j++ {
+						if b[y].HasIntersection(&lockedPieces[j]) {
+							ground[x] = lockedPieces[j]
+							c = true
+							break
+						}
+					}
+					if c {
+						break
+					}
+				}
+			}
+
+			for i, v := range ground {
+				fmt.Printf("i: %v, Y:%v\n", i, v.Y)
+			}
+
+			activePiece = nextPiece
+			nextPiece = tetris.NextTGMRandomizer()
+			activePiece.Resize(gSize)
+			tetris.SpawnTetromino(b, &activePiece)
+		}
 
 		// Draw tetrominos
 		activePiece.Draw(renderer)
 		nextPiece.Draw(renderer)
+		renderer.FillRects(lockedPieces)
 
 		renderer.Present()
 
