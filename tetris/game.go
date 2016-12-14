@@ -71,8 +71,6 @@ func (g *Game) doGravity() {
 		g.Drop()
 		g.gravFrames--
 	}
-
-	fmt.Printf("Gravity: %v", g.gravity)
 }
 
 func (g *Game) checkLock() {
@@ -125,7 +123,7 @@ func (g *Game) collision(t Tetromino) bool {
 		if v.X < g.board.X() || v.X >= g.board.X()+g.board.PixelWidth() {
 			hit = true
 			break
-		} else if v.Y < g.board.Y() || v.Y >= g.board.Y()+g.board.PixelHeight() {
+		} else if /*v.Y < g.board.Y() || */ v.Y >= g.board.Y()+g.board.PixelHeight() {
 			hit = true
 			break
 		}
