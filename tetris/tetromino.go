@@ -38,8 +38,8 @@ type Tetromino struct {
 	shape        int32
 	size         int32
 	color        sdl.Color
-	orientations int
 	orientation  int
+	orientations int
 	boundaryArea int
 	bounds       []sdl.Rect
 	blocks       [4]sdl.Rect
