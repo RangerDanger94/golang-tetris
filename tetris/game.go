@@ -14,22 +14,27 @@ const tetronimos int32 = 7
 const gXLength int = 10
 const gYLength int = 20
 const gSize int32 = 20
-const gStartX int32 = 640/2 - (int32(gXLength)*gSize)/2
+const gStartX int32 = 600/2 - (int32(gXLength)*gSize)/2
 const gStartY int32 = 0
 
-type coloredRect struct {
+type cell struct {
 	color sdl.Color
 	rect  sdl.Rect
 }
+
+const (
+	s_LOCK = iota
+	s_CLEAR
+)
 
 type Game struct {
 	activePiece  Tetromino
 	nextPiece    Tetromino
 	holdPiece    Tetromino
 	board        Grid
-	lockedPieces []coloredRect
+	lockedPieces []cell
 
-	areFrames             int
+	areDelay, areFrames   int
 	dasFrames             int
 	lockDelay, lockFrames int
 	clearFrames           int
@@ -37,12 +42,33 @@ type Game struct {
 
 	level   int
 	gravity float64
+	step    int
 }
 
 // ProcessFrame runs the game logic for a frame
 func (g *Game) ProcessFrame() {
 	g.doGravity()
-	g.checkLock()
+
+	// // if are is counting we need to get the next piece
+	// if g.areFrames > 0 {
+	// 	fmt.Println(g.areFrames)
+	// 	g.nextTetromino()
+	// } else {
+	// 	g.checkLock()
+	// }
+
+	// Run delays
+	switch g.step {
+	case s_LOCK:
+		if g.checkLock() {
+			g.step++
+		}
+	case s_CLEAR:
+		if g.checkClear() {
+			g.step = s_LOCK
+			g.nextTetromino()
+		}
+	}
 }
 
 // Draw renders the game using an sdl.Renderer
@@ -73,7 +99,7 @@ func (g *Game) doGravity() {
 	}
 }
 
-func (g *Game) checkLock() {
+func (g *Game) checkLock() bool {
 	testPiece := g.activePiece
 	testPiece.Drop()
 
@@ -84,14 +110,45 @@ func (g *Game) checkLock() {
 	}
 
 	if g.lockFrames >= g.lockDelay {
-		locked := make([]coloredRect, len(g.activePiece.Blocks()))
+		locked := make([]cell, len(g.activePiece.Blocks()))
 		for i, v := range g.activePiece.Blocks() {
 			locked[i].rect, locked[i].color = v, g.activePiece.Color()
 		}
 
 		g.lockedPieces = append(g.lockedPieces, locked...)
-		g.nextTetromino()
+		return true
 	}
+
+	return false
+}
+
+func (g *Game) checkClear() bool {
+	for x := 0; x < g.board.Width(); x++ {
+		if g.lineClear(x) {
+			fmt.Printf("Row %v has been cleared", x)
+
+		}
+	}
+
+	return true
+}
+
+func (g *Game) lineClear(l int) bool {
+	for i := l * g.board.Width(); i < (l+1)*g.board.Width(); i++ {
+		hit := false
+		for _, j := range g.lockedPieces {
+			if g.board.cells[i].HasIntersection(&j.rect) {
+				hit = true
+				break
+			}
+		}
+
+		if !hit {
+			return false
+		}
+	}
+
+	return true
 }
 
 // Drop tries to lower the active piece
@@ -104,6 +161,7 @@ func (g *Game) Drop() {
 	}
 }
 
+// collisionRects returns the sdl.Rect elements from lockedPieces
 func (g Game) collisionRects() []sdl.Rect {
 	c := make([]sdl.Rect, len(g.lockedPieces))
 	for i, v := range g.lockedPieces {
@@ -123,7 +181,7 @@ func (g *Game) collision(t Tetromino) bool {
 		if v.X < g.board.X() || v.X >= g.board.X()+g.board.PixelWidth() {
 			hit = true
 			break
-		} else if /*v.Y < g.board.Y() || */ v.Y >= g.board.Y()+g.board.PixelHeight() {
+		} else if v.Y >= g.board.Y()+g.board.PixelHeight() {
 			hit = true
 			break
 		}
@@ -146,25 +204,32 @@ func (g *Game) collision(t Tetromino) bool {
 	return hit
 }
 
+// Start initalizes game
 func (g *Game) Start() {
 	ResetTGMRandomizer()
 	g.level = 0
-	g.areFrames = 30
+	g.areDelay, g.areFrames = 30, 0
 	g.dasFrames = 14
 	g.lockDelay, g.lockFrames = 30, 0
 	g.clearFrames = 41
+	g.step = s_LOCK
 
 	g.board = NewGrid(gStartX, gStartY, gSize, gXLength, gYLength)
-	g.lockedPieces = make([]coloredRect, g.board.Area())
+	g.lockedPieces = make([]cell, g.board.Area())
 	g.activePiece, g.nextPiece = NextTGMRandomizer(), NextTGMRandomizer()
 	g.SpawnTetromino(&g.activePiece)
 }
 
 // gets the next tetromino from the randomizer
 func (g *Game) nextTetromino() {
-	g.activePiece = g.nextPiece
-	g.nextPiece = NextTGMRandomizer()
-	g.SpawnTetromino(&g.activePiece)
+	g.areFrames++
+
+	if g.areFrames >= g.areDelay {
+		g.areFrames = 0
+		g.activePiece = g.nextPiece
+		g.nextPiece = NextTGMRandomizer()
+		g.SpawnTetromino(&g.activePiece)
+	}
 }
 
 // SpawnTetromino on the grid

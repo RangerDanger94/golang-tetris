@@ -5,8 +5,8 @@ import (
 	"gitlab.com/rangerdanger/tetris/tetris"
 )
 
-const screenWidth int = 640
-const screenHeight int = 480
+const screenWidth int = 600
+const screenHeight int = 400
 
 const fps uint32 = 60
 const delayTime uint32 = 1000.0 / fps
