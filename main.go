@@ -34,7 +34,7 @@ func main() {
 	}
 	defer renderer.Destroy()
 	var foo tetris.Game
-	foo.Start()
+	foo.Game()
 
 	// Main Loop
 	running := true

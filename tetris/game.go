@@ -28,16 +28,29 @@ type Game struct {
 	holdPiece   Tetromino
 	board       Grid
 
-	areDelay, areFrames   int
-	dasFrames             int
-	lockDelay, lockFrames int
-	clearFrames           int
-	gravFrames            float64
+	areDelay, areFrames     int
+	dasFrames               int
+	lockDelay, lockFrames   int
+	clearDelay, clearFrames int
+	holdFrames              int
+
+	gravFrames float64
 
 	level   int
 	score   int
+	combo   int
+	bravo   int
 	gravity float64
 	step    int
+}
+
+// Increment the level counter
+func (g *Game) nextLevelRequiresClear() bool {
+	if g.level+1%100 == 0 || g.level == 998 {
+		return true
+	}
+
+	return false
 }
 
 // ProcessFrame runs the game logic for a frame
@@ -113,13 +126,35 @@ func (g *Game) checkLock() bool {
 
 // check all rows for successful line clear
 func (g *Game) checkClear() bool {
+	cleared := 0
 	for row := range g.board.cells {
 		if g.checkLineClear(row) {
 			g.clearLine(row)
+			cleared++
 		}
 	}
 
+	// add to score
+	if cleared > 0 {
+		g.combo += (2 * cleared) - 2
+		g.score += (roof(g.level+cleared, 4) + g.holdFrames) * cleared * ((2 * cleared) - 1) * g.combo * g.bravo
+	} else {
+		g.combo = 1
+	}
+
+	g.level += cleared
+	fmt.Printf("Level %v\n", g.level)
+	fmt.Printf("Score %v\n", g.score)
 	return true
+}
+
+// Returns the rounded up value of a division
+func roof(foo, bar int) int {
+	if foo%bar == 0 {
+		return int(foo / bar)
+	}
+
+	return int(foo/bar) + 1
 }
 
 // return true if all cells in the row are occupied
@@ -133,7 +168,7 @@ func (g *Game) checkLineClear(row int) bool {
 	return true
 }
 
-// dro
+// drop lines above cleared line
 func (g *Game) clearLine(row int) {
 	g.board.cells[row] = g.board.createRow(row)
 
@@ -198,12 +233,13 @@ func (g *Game) collision(t Tetromino) bool {
 }
 
 // Start initalizes game
-func (g *Game) Start() {
-	for i := I; i <= Z; i++ {
-		fmt.Println(i)
-	}
+func (g *Game) Game() {
 	ResetTGMRandomizer()
 	g.level = 0
+	g.score = 0
+	g.combo = 1
+	g.bravo = 1
+
 	g.areDelay, g.areFrames = 30, 0
 	g.dasFrames = 14
 	g.lockDelay, g.lockFrames = 30, 0
@@ -230,7 +266,9 @@ func (g *Game) nextTetromino() {
 func (g *Game) SpawnTetromino(t *Tetromino) {
 	t.Resize(g.board.cellSize)
 	t.move(g.board.cells[0][3].rect.X, g.board.cells[0][3].rect.Y-g.board.CellSize())
-	g.level++
+	if !g.nextLevelRequiresClear() {
+		g.level++
+	}
 }
 
 // BufferShift buffers the shift command
@@ -303,19 +341,19 @@ func ResetTGMRandomizer() {
 
 // NextTGMRandomizer gets the next Tetromino according to tgm randomization rules
 func NextTGMRandomizer() Tetromino {
-	tS := rand.Int31n(tetronimos - 1)
+	tS := rand.Int31n(tetronimos) - 1
 
 	// The game never deals an S, Z or O as the first piece
 	if tgmFirstPiece {
 		for tS == S || tS == Z || tS == O {
-			tS = rand.Int31n(tetronimos - 1)
+			tS = rand.Int31n(tetronimos) - 1
 		}
 	}
 
 	// Attempt to get a tetronimo not in the bag history
 	for _, t := range tgmBagHistory {
 		if tS == t {
-			tS = rand.Int31n(tetronimos - 1)
+			tS = rand.Int31n(tetronimos) - 1
 		}
 	}
 
@@ -359,6 +397,27 @@ var tgmGravity = map[int]float64{
 	420: 1024.0,
 	450: 768.0,
 	500: 5120.0, // 20G
+}
+
+var tgmGrading = map[string]int{
+	"9":  0,
+	"8":  400,
+	"7":  800,
+	"6":  1400,
+	"5":  2000,
+	"4":  3500,
+	"3":  5500,
+	"2":  8000,
+	"1":  12000,
+	"S1": 16000,
+	"S2": 22000,
+	"S3": 30000,
+	"S4": 40000,
+	"S5": 52000,
+	"S6": 66000,
+	"S7": 82000,
+	"S8": 100000,
+	"S9": 120000,
 }
 
 // GetTGMGravityMap get tgm grav rules
