@@ -60,6 +60,19 @@ func (g Grid) Draw(r *sdl.Renderer) {
 	}
 }
 
+// Unoccupied returns true if no elements are occupied
+func (g Grid) Unoccupied() bool {
+	for _, row := range g.cells {
+		for _, col := range row {
+			if col.occupied {
+				return false
+			}
+		}
+	}
+
+	return true
+}
+
 // Area returns width * height
 func (g Grid) Area() int {
 	return g.width * g.height

@@ -19,6 +19,8 @@ var (
 	Black  = sdl.Color{R: 0x00, G: 0x00, B: 0x00, A: 0xFF}
 )
 
+const tetrominos int32 = 7
+
 // Tetronimo shapes
 const (
 	I = iota
@@ -54,6 +56,11 @@ type Tetromino struct {
 	boundaryArea int
 	bounds       []sdl.Rect
 	blocks       [4]sdl.Rect
+}
+
+// Type e.g. I, J, L
+func (t Tetromino) Type() int32 {
+	return t.shape
 }
 
 // Shape - getter for shape

@@ -16,6 +16,15 @@ const lockDelay int = 31
 func main() {
 	sdl.Init(sdl.INIT_EVERYTHING)
 
+	// rolls := make(map[int32]int)
+	// tetris.ResetTGMRandomizer()
+	// for i := 0; i < 10000; i++ {
+	// 	rolls[tetris.NextTGMRandomizer().Shape()]++
+	// }
+	// for _, v := range rolls {
+	// 	fmt.Printf("%v\n", v)
+	// }
+
 	// Create Window
 	window, err := sdl.CreateWindow(
 		"Tetris xTreme 2016",
@@ -41,21 +50,24 @@ func main() {
 	for running {
 		frameStart := sdl.GetTicks()
 
+		//foo.BufferCommand(0)
 		for event := sdl.PollEvent(); event != nil; event = sdl.PollEvent() {
 			switch t := event.(type) {
 			case *sdl.KeyDownEvent:
 				switch t.Keysym.Sym {
 				case sdl.K_LEFT:
-					foo.BufferShift(false)
+					foo.BufferCommand(tetris.ShiftLeft)
 				case sdl.K_RIGHT:
-					foo.BufferShift(true)
+					foo.BufferCommand(tetris.ShiftRight)
 				case sdl.K_UP:
-					foo.BufferRotate(true)
+					foo.BufferCommand(tetris.RotateClockwise)
 				case sdl.K_DOWN:
-					foo.BufferRotate(false)
+					foo.BufferCommand(tetris.RotateCounterClockwise)
 				case sdl.K_SPACE:
-					foo.Drop()
+					foo.BufferCommand(tetris.ManualDrop)
 				}
+			case *sdl.KeyUpEvent:
+				foo.BufferCommand(0)
 			case *sdl.QuitEvent:
 				running = false
 			}

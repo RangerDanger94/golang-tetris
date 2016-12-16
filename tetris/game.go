@@ -1,14 +1,11 @@
 package tetris
 
 import (
-	"fmt"
 	"math/rand"
 	"time"
 
 	"github.com/veandco/go-sdl2/sdl"
 )
-
-const tetronimos int32 = 7
 
 // Board presets
 const gXLength int = 10
@@ -17,9 +14,22 @@ const gSize int32 = 20
 const gStartX int32 = 600/2 - (int32(gXLength)*gSize)/2
 const gStartY int32 = 0
 
+// Game steps
 const (
-	s_LOCK = iota
-	s_CLEAR
+	Locking = iota
+	Clearing
+	ClearDelay
+	Spawning
+)
+
+// Input commands
+const (
+	_ = iota
+	ShiftLeft
+	ShiftRight
+	RotateClockwise
+	RotateCounterClockwise
+	ManualDrop
 )
 
 type Game struct {
@@ -27,21 +37,31 @@ type Game struct {
 	nextPiece   Tetromino
 	holdPiece   Tetromino
 	board       Grid
+	command     int32
+	lastCommand int32
 
 	areDelay, areFrames     int
-	dasFrames               int
+	dasDelay, dasFrames     int
 	lockDelay, lockFrames   int
 	clearDelay, clearFrames int
-	holdFrames              int
+	activeFrames            int
+	step                    int
+
+	soft       bool
+	softFrames int
 
 	gravFrames float64
+	gravity    float64
 
-	level   int
-	score   int
-	combo   int
-	bravo   int
-	gravity float64
-	step    int
+	level int
+	score int
+	combo int
+	bravo int
+}
+
+// Sets the games active command
+func (g *Game) BufferCommand(command int32) {
+	g.command = command
 }
 
 // Increment the level counter
@@ -56,18 +76,82 @@ func (g *Game) nextLevelRequiresClear() bool {
 // ProcessFrame runs the game logic for a frame
 func (g *Game) ProcessFrame() {
 	g.doGravity()
+	g.soft = false
 
-	// Run delays
-	switch g.step {
-	case s_LOCK:
-		if g.checkLock() {
-			g.step++
+	if g.command == ShiftLeft || g.command == ShiftRight {
+		if !g.dasLocked() {
+			g.dasFrames++
 		}
-	case s_CLEAR:
-		if g.checkClear() {
-			g.step = s_LOCK
+
+		if g.dasFrames == 1 || g.dasFrames >= g.dasDelay {
+			if g.command == ShiftLeft {
+				g.tryShift(false)
+			} else {
+				g.tryShift(true)
+			}
+		}
+
+	} else {
+		if !g.dasLocked() {
+			g.dasFrames = 0
+		}
+
+		if g.command == RotateClockwise && g.lastCommand != RotateClockwise {
+			g.tryRotate(true)
+		} else if g.command == RotateCounterClockwise && g.lastCommand != RotateCounterClockwise {
+			g.tryRotate(false)
+		} else if g.command == ManualDrop {
+			g.softFrames++
+			g.soft = true
+			g.tryDrop()
 		}
 	}
+
+	g.lastCommand = g.command
+
+	// State machine
+	switch g.step {
+	case Locking:
+		g.activeFrames++
+		if g.checkLock() {
+			g.activeFrames = 0
+			g.step = Clearing
+		}
+	case Clearing:
+		if g.checkClear() {
+			g.step = ClearDelay
+		} else {
+			g.step = Spawning
+		}
+	case ClearDelay:
+		g.clearFrames++
+		if g.clearFrames >= g.clearDelay {
+			g.clearFrames = 0
+			g.step = Spawning
+		}
+	case Spawning:
+		g.areFrames++
+		if g.areFrames >= g.areDelay {
+			g.areFrames = 0
+			g.softFrames = 0
+			g.activePiece, g.nextPiece = g.nextPiece, NextTGMRandomizer()
+			g.SpawnTetromino(&g.activePiece)
+			g.step = Locking
+		}
+	}
+}
+
+// The players DAS charge is unmodified during line clear delay,
+// the first 4 frames of ARE, the last frame of ARE and the frame
+// on which a piece spawns
+func (g Game) dasLocked() bool {
+	if g.activeFrames != 1 &&
+		g.clearFrames == 0 &&
+		g.areFrames > 4 &&
+		g.areFrames != g.areDelay {
+		return true
+	}
+	return false
 }
 
 // Draw renders the game using an sdl.Renderer
@@ -88,8 +172,18 @@ func (g *Game) doGravity() {
 	g.gravFrames += g.gravity
 
 	for g.gravFrames >= 1 {
-		g.Drop()
+		g.tryDrop()
 		g.gravFrames--
+	}
+}
+
+// Attempts to drop piece if valid
+func (g *Game) tryDrop() {
+	testPiece := g.activePiece
+	testPiece.Drop()
+
+	if !g.collision(testPiece) {
+		g.activePiece.Drop()
 	}
 }
 
@@ -99,12 +193,15 @@ func (g *Game) checkLock() bool {
 
 	if g.collision(testPiece) {
 		g.lockFrames++
+
+		if g.soft { // manual locking
+			g.lockFrames = g.lockDelay
+		}
 	} else {
 		g.lockFrames = 0
 	}
 
 	if g.lockFrames >= g.lockDelay {
-
 		for _, v := range g.activePiece.blocks {
 			for _, row := range g.board.cells {
 				for col := range row {
@@ -116,8 +213,6 @@ func (g *Game) checkLock() bool {
 			}
 		}
 
-		g.nextTetromino()
-		fmt.Println("Finished locking the active tetromino")
 		return true
 	}
 
@@ -134,18 +229,22 @@ func (g *Game) checkClear() bool {
 		}
 	}
 
-	// add to score
+	// Check Bravo & Combo, update Score
 	if cleared > 0 {
+		if g.board.Unoccupied() {
+			g.bravo = 4
+		} else {
+			g.bravo = 1
+		}
 		g.combo += (2 * cleared) - 2
-		g.score += (roof(g.level+cleared, 4) + g.holdFrames) * cleared * ((2 * cleared) - 1) * g.combo * g.bravo
+		g.score += (roof(g.level+cleared, 4) + g.softFrames) * cleared * ((2 * cleared) - 1) * g.combo * g.bravo
 	} else {
 		g.combo = 1
 	}
 
-	g.level += cleared
-	fmt.Printf("Level %v\n", g.level)
-	fmt.Printf("Score %v\n", g.score)
-	return true
+	g.level += cleared // level up
+
+	return cleared > 0
 }
 
 // Returns the rounded up value of a division
@@ -178,21 +277,6 @@ func (g *Game) clearLine(row int) {
 			g.board.cells[i][col].occupied = g.board.cells[i-1][col].occupied
 			g.board.cells[i][col].color = g.board.cells[i-1][col].color
 		}
-	}
-}
-
-func remove(s []cell, i int) []cell {
-	s[len(s)-1], s[i] = s[i], s[len(s)-1]
-	return s[:len(s)-1]
-}
-
-// Drop tries to lower the active piece
-func (g *Game) Drop() {
-	testPiece := g.activePiece
-	testPiece.Drop()
-
-	if !g.collision(testPiece) {
-		g.activePiece.Drop()
 	}
 }
 
@@ -239,40 +323,34 @@ func (g *Game) Game() {
 	g.score = 0
 	g.combo = 1
 	g.bravo = 1
+	g.command = 0
 
 	g.areDelay, g.areFrames = 30, 0
-	g.dasFrames = 14
+	g.dasDelay, g.dasFrames = 14, 0
 	g.lockDelay, g.lockFrames = 30, 0
+	g.activeFrames = 0
+	g.softFrames = 0
+	g.soft = false
 	g.clearFrames = 41
-	g.step = s_LOCK
+	g.step = Locking
 
 	g.board = NewGrid(gStartX, gStartY, gSize, gXLength, gYLength)
 	g.activePiece, g.nextPiece = NextTGMRandomizer(), NextTGMRandomizer()
 	g.SpawnTetromino(&g.activePiece)
 }
 
-// gets the next tetromino from the randomizer
-func (g *Game) nextTetromino() {
-	// g.areFrames++
-
-	// if g.areFrames >= g.areDelay {
-	g.areFrames = 0
-	g.activePiece, g.nextPiece = g.nextPiece, NextTGMRandomizer()
-	g.SpawnTetromino(&g.activePiece)
-	//}
-}
-
 // SpawnTetromino on the grid
 func (g *Game) SpawnTetromino(t *Tetromino) {
 	t.Resize(g.board.cellSize)
 	t.move(g.board.cells[0][3].rect.X, g.board.cells[0][3].rect.Y-g.board.CellSize())
+	g.activeFrames = 1
 	if !g.nextLevelRequiresClear() {
 		g.level++
 	}
 }
 
-// BufferShift buffers the shift command
-func (g *Game) BufferShift(right bool) {
+// tryShift will check and perform valid shift
+func (g *Game) tryShift(right bool) {
 	testPiece := g.activePiece
 	if right {
 		testPiece.ShiftRight()
@@ -289,8 +367,8 @@ func (g *Game) BufferShift(right bool) {
 	}
 }
 
-// BufferRotate buffers the rotation command
-func (g *Game) BufferRotate(clockwise bool) {
+// tryRotate will check and perform valid rotations
+func (g *Game) tryRotate(clockwise bool) {
 	rotate := func() {
 		if clockwise {
 			g.activePiece.RotateClockwise()
@@ -341,19 +419,19 @@ func ResetTGMRandomizer() {
 
 // NextTGMRandomizer gets the next Tetromino according to tgm randomization rules
 func NextTGMRandomizer() Tetromino {
-	tS := rand.Int31n(tetronimos) - 1
+	tS := rand.Int31n(tetrominos)
 
 	// The game never deals an S, Z or O as the first piece
 	if tgmFirstPiece {
 		for tS == S || tS == Z || tS == O {
-			tS = rand.Int31n(tetronimos) - 1
+			tS = rand.Int31n(tetrominos)
 		}
 	}
 
 	// Attempt to get a tetronimo not in the bag history
 	for _, t := range tgmBagHistory {
 		if tS == t {
-			tS = rand.Int31n(tetronimos) - 1
+			tS = rand.Int31n(tetrominos)
 		}
 	}
 
