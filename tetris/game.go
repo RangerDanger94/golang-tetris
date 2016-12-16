@@ -17,22 +17,16 @@ const gSize int32 = 20
 const gStartX int32 = 600/2 - (int32(gXLength)*gSize)/2
 const gStartY int32 = 0
 
-type cell struct {
-	color sdl.Color
-	rect  sdl.Rect
-}
-
 const (
 	s_LOCK = iota
 	s_CLEAR
 )
 
 type Game struct {
-	activePiece  Tetromino
-	nextPiece    Tetromino
-	holdPiece    Tetromino
-	board        Grid
-	lockedPieces []cell
+	activePiece Tetromino
+	nextPiece   Tetromino
+	holdPiece   Tetromino
+	board       Grid
 
 	areDelay, areFrames   int
 	dasFrames             int
@@ -41,6 +35,7 @@ type Game struct {
 	gravFrames            float64
 
 	level   int
+	score   int
 	gravity float64
 	step    int
 }
@@ -48,14 +43,6 @@ type Game struct {
 // ProcessFrame runs the game logic for a frame
 func (g *Game) ProcessFrame() {
 	g.doGravity()
-
-	// // if are is counting we need to get the next piece
-	// if g.areFrames > 0 {
-	// 	fmt.Println(g.areFrames)
-	// 	g.nextTetromino()
-	// } else {
-	// 	g.checkLock()
-	// }
 
 	// Run delays
 	switch g.step {
@@ -66,20 +53,14 @@ func (g *Game) ProcessFrame() {
 	case s_CLEAR:
 		if g.checkClear() {
 			g.step = s_LOCK
-			g.nextTetromino()
 		}
 	}
 }
 
 // Draw renders the game using an sdl.Renderer
-func (g *Game) Draw(r *sdl.Renderer) {
+func (g Game) Draw(r *sdl.Renderer) {
 	g.board.Draw(r)
 	g.activePiece.Draw(r)
-
-	for _, v := range g.lockedPieces {
-		r.SetDrawColor(v.color.R, v.color.G, v.color.B, v.color.A)
-		r.FillRect(&v.rect)
-	}
 }
 
 func (g *Game) doGravity() {
@@ -110,45 +91,64 @@ func (g *Game) checkLock() bool {
 	}
 
 	if g.lockFrames >= g.lockDelay {
-		locked := make([]cell, len(g.activePiece.Blocks()))
-		for i, v := range g.activePiece.Blocks() {
-			locked[i].rect, locked[i].color = v, g.activePiece.Color()
+
+		for _, v := range g.activePiece.blocks {
+			for _, row := range g.board.cells {
+				for col := range row {
+					if v.Equals(&row[col].rect) {
+						row[col].occupied = true
+						row[col].color = g.activePiece.color
+					}
+				}
+			}
 		}
 
-		g.lockedPieces = append(g.lockedPieces, locked...)
+		g.nextTetromino()
+		fmt.Println("Finished locking the active tetromino")
 		return true
 	}
 
 	return false
 }
 
+// check all rows for successful line clear
 func (g *Game) checkClear() bool {
-	for x := 0; x < g.board.Width(); x++ {
-		if g.lineClear(x) {
-			fmt.Printf("Row %v has been cleared", x)
-
+	for row := range g.board.cells {
+		if g.checkLineClear(row) {
+			g.clearLine(row)
 		}
 	}
 
 	return true
 }
 
-func (g *Game) lineClear(l int) bool {
-	for i := l * g.board.Width(); i < (l+1)*g.board.Width(); i++ {
-		hit := false
-		for _, j := range g.lockedPieces {
-			if g.board.cells[i].HasIntersection(&j.rect) {
-				hit = true
-				break
-			}
-		}
-
-		if !hit {
+// return true if all cells in the row are occupied
+func (g *Game) checkLineClear(row int) bool {
+	for col := range g.board.cells[row] {
+		if !g.board.cells[row][col].occupied {
 			return false
 		}
 	}
 
 	return true
+}
+
+// dro
+func (g *Game) clearLine(row int) {
+	g.board.cells[row] = g.board.createRow(row)
+
+	// Drop all occupied spaces by 1
+	for i := row; i > 0; i-- {
+		for col := range g.board.cells[i] {
+			g.board.cells[i][col].occupied = g.board.cells[i-1][col].occupied
+			g.board.cells[i][col].color = g.board.cells[i-1][col].color
+		}
+	}
+}
+
+func remove(s []cell, i int) []cell {
+	s[len(s)-1], s[i] = s[i], s[len(s)-1]
+	return s[:len(s)-1]
 }
 
 // Drop tries to lower the active piece
@@ -162,50 +162,46 @@ func (g *Game) Drop() {
 }
 
 // collisionRects returns the sdl.Rect elements from lockedPieces
-func (g Game) collisionRects() []sdl.Rect {
-	c := make([]sdl.Rect, len(g.lockedPieces))
-	for i, v := range g.lockedPieces {
-		c[i] = v.rect
+func (g Game) terminoIntersection(t Tetromino, r sdl.Rect) bool {
+	for _, v := range t.blocks {
+		if v.HasIntersection(&r) {
+			return true
+		}
 	}
-	return c
+
+	return false
 }
 
 // collision checks if a tetromino is colliding with the following
 // 1. Locked pieces
 // 2. Board edges
 func (g *Game) collision(t Tetromino) bool {
-	hit := false
-
 	// Check tetromino outside the board
-	for _, v := range t.Blocks() {
+	for _, v := range t.blocks {
 		if v.X < g.board.X() || v.X >= g.board.X()+g.board.PixelWidth() {
-			hit = true
-			break
+			return true
 		} else if v.Y >= g.board.Y()+g.board.PixelHeight() {
-			hit = true
-			break
+			return true
 		}
 	}
 
-	// Check collision with any locked pieces
-	for _, i := range t.Blocks() {
-		for _, j := range g.collisionRects() {
-			if i.HasIntersection(&j) {
-				hit = true
-				break
+	// Check collision with any occupied spaces
+	for _, row := range g.board.cells {
+		for _, col := range row {
+			if col.occupied && g.terminoIntersection(t, col.rect) {
+				return true
 			}
 		}
-
-		if hit {
-			break
-		}
 	}
 
-	return hit
+	return false
 }
 
 // Start initalizes game
 func (g *Game) Start() {
+	for i := I; i <= Z; i++ {
+		fmt.Println(i)
+	}
 	ResetTGMRandomizer()
 	g.level = 0
 	g.areDelay, g.areFrames = 30, 0
@@ -215,27 +211,25 @@ func (g *Game) Start() {
 	g.step = s_LOCK
 
 	g.board = NewGrid(gStartX, gStartY, gSize, gXLength, gYLength)
-	g.lockedPieces = make([]cell, g.board.Area())
 	g.activePiece, g.nextPiece = NextTGMRandomizer(), NextTGMRandomizer()
 	g.SpawnTetromino(&g.activePiece)
 }
 
 // gets the next tetromino from the randomizer
 func (g *Game) nextTetromino() {
-	g.areFrames++
+	// g.areFrames++
 
-	if g.areFrames >= g.areDelay {
-		g.areFrames = 0
-		g.activePiece = g.nextPiece
-		g.nextPiece = NextTGMRandomizer()
-		g.SpawnTetromino(&g.activePiece)
-	}
+	// if g.areFrames >= g.areDelay {
+	g.areFrames = 0
+	g.activePiece, g.nextPiece = g.nextPiece, NextTGMRandomizer()
+	g.SpawnTetromino(&g.activePiece)
+	//}
 }
 
 // SpawnTetromino on the grid
 func (g *Game) SpawnTetromino(t *Tetromino) {
 	t.Resize(g.board.cellSize)
-	t.move(g.board.Cells()[3].X, g.board.Cells()[3].Y-g.board.CellSize())
+	t.move(g.board.cells[0][3].rect.X, g.board.cells[0][3].rect.Y-g.board.CellSize())
 	g.level++
 }
 
@@ -297,6 +291,43 @@ func (g *Game) BufferRotate(clockwise bool) {
 
 }
 
+var tgmBagHistory []int32
+var tgmFirstPiece bool
+
+// ResetTGMRandomizer seeds generator and resets bag history
+func ResetTGMRandomizer() {
+	rand.Seed(time.Now().UTC().UnixNano())
+	tgmBagHistory = []int32{Z, Z, Z, Z}
+	tgmFirstPiece = true
+}
+
+// NextTGMRandomizer gets the next Tetromino according to tgm randomization rules
+func NextTGMRandomizer() Tetromino {
+	tS := rand.Int31n(tetronimos - 1)
+
+	// The game never deals an S, Z or O as the first piece
+	if tgmFirstPiece {
+		for tS == S || tS == Z || tS == O {
+			tS = rand.Int31n(tetronimos - 1)
+		}
+	}
+
+	// Attempt to get a tetronimo not in the bag history
+	for _, t := range tgmBagHistory {
+		if tS == t {
+			tS = rand.Int31n(tetronimos - 1)
+		}
+	}
+
+	for i := len(tgmBagHistory) - 1; i > 0; i-- {
+		tgmBagHistory[i] = tgmBagHistory[i-1]
+	}
+	tgmBagHistory = append([]int32{tS}, tgmBagHistory[1:4]...)
+	tgmFirstPiece = false
+
+	return generateTetronimo(tS)
+}
+
 var tgmGravity = map[int]float64{
 	0:   4.0,
 	30:  6.0,
@@ -328,44 +359,6 @@ var tgmGravity = map[int]float64{
 	420: 1024.0,
 	450: 768.0,
 	500: 5120.0, // 20G
-}
-
-var tgmBagHistory = []int32{Z, Z, S, S}
-var tgmFirstPiece bool = true
-
-// ResetTGMRandomizer seeds generator and resets bag history
-func ResetTGMRandomizer() {
-	rand.Seed(time.Now().UTC().UnixNano())
-	tgmBagHistory = []int32{Z, Z, S, S}
-	tgmFirstPiece = true
-}
-
-// NextTGMRandomizer gets the next Tetromino according to tgm randomization rules
-func NextTGMRandomizer() Tetromino {
-	tS := rand.Int31n(tetronimos)
-
-	// The game never deals an S, Z or O as the first piece
-	if tgmFirstPiece {
-		for tS == S || tS == Z || tS == O {
-			tS = rand.Int31n(tetronimos)
-		}
-	}
-
-	// Attempt to get a tetronimo not in the bag history
-	for _, t := range tgmBagHistory {
-		if tS == t {
-			tS = rand.Int31n(tetronimos)
-		}
-	}
-
-	for i := len(tgmBagHistory) - 1; i > 0; i-- {
-		tgmBagHistory[i] = tgmBagHistory[i-1]
-	}
-	tgmBagHistory = append([]int32{tS}, tgmBagHistory[1:4]...)
-	tgmFirstPiece = false
-
-	fmt.Printf("Termino: %v\n", tS)
-	return generateTetronimo(tS)
 }
 
 // GetTGMGravityMap get tgm grav rules

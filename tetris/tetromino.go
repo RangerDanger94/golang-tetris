@@ -7,6 +7,18 @@ import (
 	"github.com/veandco/go-sdl2/sdl"
 )
 
+// Tetromino color scheme
+var (
+	Red    = sdl.Color{R: 0xFF, G: 0x00, B: 0x00, A: 0xFF}
+	Blue   = sdl.Color{R: 0x00, G: 0x00, B: 0xFF, A: 0xFF}
+	Orange = sdl.Color{R: 0xEF, G: 0x79, B: 0x21, A: 0xFF}
+	Yellow = sdl.Color{R: 0xF7, G: 0xD3, B: 0x08, A: 0xFF}
+	Aqua   = sdl.Color{R: 0x31, G: 0xC7, B: 0xEF, A: 0xFF}
+	Purple = sdl.Color{R: 0xAD, G: 0x4D, B: 0x9C, A: 0xFF}
+	Green  = sdl.Color{R: 0x00, G: 0xFF, B: 0x00, A: 0xFF}
+	Black  = sdl.Color{R: 0x00, G: 0x00, B: 0x00, A: 0xFF}
+)
+
 // Tetronimo shapes
 const (
 	I = iota
@@ -18,7 +30,6 @@ const (
 	Z
 )
 
-//
 func (t *Tetromino) setBounds(sX int32, sY int32) {
 	t.bounds = make([]sdl.Rect, t.boundaryArea*t.boundaryArea)
 	var x, y int32 = sX, sY
@@ -58,7 +69,7 @@ func ITetromino() Tetromino {
 	t.size = 10
 	t.orientation = 1
 	t.orientations = 2
-	t.color = sdl.Color{R: 0xFF, G: 0x00, B: 0x00, A: 0xFF}
+	t.color = Red
 	t.boundaryArea = 4
 	t.setBounds(0, 0)
 	t.setOrientation(t.orientation)
@@ -74,7 +85,7 @@ func JTetromino() Tetromino {
 	t.size = 10
 	t.orientation = 1
 	t.orientations = 4
-	t.color = sdl.Color{R: 0x00, G: 0x00, B: 0xFF, A: 0xFF}
+	t.color = Blue
 	t.boundaryArea = 3
 	t.setBounds(0, 0)
 	t.setOrientation(t.orientation)
@@ -90,7 +101,7 @@ func LTetromino() Tetromino {
 	t.size = 10
 	t.orientation = 1
 	t.orientations = 4
-	t.color = sdl.Color{R: 0xEF, G: 0x79, B: 0x21, A: 0xFF}
+	t.color = Orange
 	t.boundaryArea = 3
 	t.setBounds(0, 0)
 	t.setOrientation(t.orientation)
@@ -106,7 +117,7 @@ func OTetromino() Tetromino {
 	t.size = 10
 	t.orientation = 1
 	t.orientations = 1
-	t.color = sdl.Color{R: 0xF7, G: 0xD3, B: 0x08, A: 0xFF}
+	t.color = Yellow
 	t.boundaryArea = 4
 	t.setBounds(0, 0)
 	t.setOrientation(t.orientation)
@@ -122,7 +133,7 @@ func TTetromino() Tetromino {
 	t.size = 10
 	t.orientation = 1
 	t.orientations = 4
-	t.color = sdl.Color{R: 0x31, G: 0xC7, B: 0xEF, A: 0xFF}
+	t.color = Aqua
 	t.boundaryArea = 3
 	t.setBounds(0, 0)
 	t.setOrientation(t.orientation)
@@ -138,7 +149,7 @@ func STetromino() Tetromino {
 	t.size = 10
 	t.orientation = 1
 	t.orientations = 2
-	t.color = sdl.Color{R: 0xAD, G: 0x4D, B: 0x9C, A: 0xFF}
+	t.color = Purple
 	t.boundaryArea = 3
 	t.setBounds(0, 0)
 	t.setOrientation(t.orientation)
@@ -154,7 +165,7 @@ func ZTetromino() Tetromino {
 	t.size = 10
 	t.orientation = 1
 	t.orientations = 2
-	t.color = sdl.Color{R: 0x00, G: 0xFF, B: 0x00, A: 0xFF}
+	t.color = Green
 	t.boundaryArea = 3
 	t.setBounds(0, 0)
 	t.setOrientation(t.orientation)

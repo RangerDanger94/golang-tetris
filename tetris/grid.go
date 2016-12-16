@@ -2,6 +2,12 @@ package tetris
 
 import "github.com/veandco/go-sdl2/sdl"
 
+type cell struct {
+	color    sdl.Color
+	rect     sdl.Rect
+	occupied bool
+}
+
 // Grid - game board
 type Grid struct {
 	cellSize int32
@@ -9,7 +15,7 @@ type Grid struct {
 	y        int32
 	width    int
 	height   int
-	cells    []sdl.Rect
+	cells    [][]cell
 }
 
 // NewGrid creates new tetris grid
@@ -22,30 +28,36 @@ func NewGrid(x, y, cellSize int32, width, height int) Grid {
 	return g
 }
 
-func (g *Grid) createGrid() {
-	g.cells = make([]sdl.Rect, g.Area())
-	var x, y int32 = g.x, g.y
+// Create an empty row
+func (g *Grid) createRow(row int) []cell {
+	r := make([]cell, g.width)
 
-	for i := 1; i <= g.Area(); i++ {
-		g.cells[i-1] = sdl.Rect{X: x, Y: y, W: g.cellSize, H: g.cellSize}
-		x += g.cellSize
-
-		if i%int(g.width) == 0 {
-			y += g.cellSize
-			x = g.x
-		}
+	for column := range r {
+		r[column].color = Black
+		r[column].rect = sdl.Rect{X: g.x + int32(column)*g.cellSize, Y: int32(row) * g.cellSize, W: g.cellSize, H: g.cellSize}
+		r[column].occupied = false
 	}
+
+	return r
 }
 
-// Cells returns the grid
-func (g Grid) Cells() []sdl.Rect {
-	return g.cells
+func (g *Grid) createGrid() {
+	g.cells = make([][]cell, g.height)
+
+	for row := range g.cells {
+		g.cells[row] = g.createRow(row)
+	}
 }
 
 // Draw draws the grid with its locked pieces
 func (g Grid) Draw(r *sdl.Renderer) {
-	r.SetDrawColor(0x0, 0x0, 0x0, 0xFF)
-	r.FillRects(g.cells)
+	for _, row := range g.cells {
+		for _, col := range row {
+			//fmt.Printf("%v\n", col.color)
+			r.SetDrawColor(col.color.R, col.color.G, col.color.B, col.color.A)
+			r.FillRect(&col.rect)
+		}
+	}
 }
 
 // Area returns width * height
@@ -84,15 +96,4 @@ func (g Grid) X() int32 {
 
 func (g Grid) Y() int32 {
 	return g.y
-}
-
-// Ground rects below the playing area
-func (g Grid) Ground() []sdl.Rect {
-	ground := make([]sdl.Rect, g.width)
-
-	for i, j := g.Area()-g.width, 0; i < g.Area(); i, j = i+1, j+1 {
-		ground[j] = sdl.Rect{X: g.cells[i].X, Y: g.cells[i].Y + g.cellSize, W: g.cellSize, H: g.cellSize}
-	}
-
-	return ground
 }
