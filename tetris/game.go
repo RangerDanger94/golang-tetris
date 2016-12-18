@@ -1,10 +1,13 @@
 package tetris
 
 import (
+	"fmt"
+	"log"
 	"math/rand"
 	"time"
 
 	"github.com/veandco/go-sdl2/sdl"
+	"gitlab.com/rangerdanger/sdlaudio"
 )
 
 // Board presets
@@ -16,10 +19,13 @@ const gStartY int32 = 0
 
 // Game steps
 const (
-	Locking = iota
+	Menu = iota
+	Locking
 	Clearing
 	ClearDelay
 	Spawning
+	Transition
+	GameOver
 )
 
 // Input commands
@@ -30,9 +36,11 @@ const (
 	RotateClockwise
 	RotateCounterClockwise
 	ManualDrop
+	Start
 )
 
 type Game struct {
+	start       time.Time
 	activePiece Tetromino
 	nextPiece   Tetromino
 	holdPiece   Tetromino
@@ -59,6 +67,53 @@ type Game struct {
 	bravo int
 }
 
+// NewGame returns a new game struct
+func NewGame() *Game {
+	return new(Game)
+}
+
+// Step returns game step
+func (g Game) Step() int {
+	return g.step
+}
+
+// Init sets up the games variables
+func (g *Game) Init() {
+	ResetTGMRandomizer()
+	g.loadMusic()
+	sdlaudio.PlayMusic("menu", -1)
+
+	g.level = 0
+	g.score = 0
+	g.combo = 1
+	g.bravo = 1
+	g.command = 0
+
+	g.areDelay, g.areFrames = 30, 0
+	g.dasDelay, g.dasFrames = 14, 0
+	g.lockDelay, g.lockFrames = 30, 0
+	g.clearDelay, g.clearFrames = 41, 0
+	g.activeFrames = 0
+	g.softFrames = 0
+	g.soft = false
+	g.step = Menu
+
+}
+
+// Start initalizes game
+func (g *Game) Start() {
+	g.board = NewGrid(gStartX, gStartY, gSize, gXLength, gYLength)
+	g.step = Locking
+	sdlaudio.PlayMusic("easy", -1)
+	g.activePiece, g.nextPiece = NextTGMRandomizer(), NextTGMRandomizer()
+	g.SpawnTetromino(&g.activePiece)
+}
+
+func (g *Game) RunTime() string {
+	since := time.Since(g.start)
+	return fmt.Sprintf("%02f:%02f:%02f", since.Minutes(), since.Seconds(), since.Seconds()/1000.0)
+}
+
 // Sets the games active command
 func (g *Game) BufferCommand(command int32) {
 	g.command = command
@@ -73,72 +128,113 @@ func (g *Game) nextLevelRequiresClear() bool {
 	return false
 }
 
+// LoadMusic passes back the map of audio assets to be loaded
+func (g *Game) loadMusic() error {
+	for k, v := range tgmAudio {
+		if err := sdlaudio.LoadMusic(k, v); err != nil {
+			log.Println(err)
+			return err
+		}
+	}
+
+	return nil
+}
+
+var lastStep int
+
 // ProcessFrame runs the game logic for a frame
 func (g *Game) ProcessFrame() {
-	g.doGravity()
-	g.soft = false
-
-	if g.command == ShiftLeft || g.command == ShiftRight {
-		if !g.dasLocked() {
-			g.dasFrames++
+	switch g.step {
+	case Menu:
+		if g.command == Start {
+			g.step = Transition
+			lastStep = Menu
+		}
+	case Transition:
+		var track string
+		if lastStep == Menu {
+			track = "start"
+		} else if lastStep == GameOver {
+			track = "gameOver"
 		}
 
-		if g.dasFrames == 1 || g.dasFrames >= g.dasDelay {
-			if g.command == ShiftLeft {
-				g.tryShift(false)
-			} else {
-				g.tryShift(true)
+		if b, err := sdlaudio.MusicTransition(track); b {
+			g.Start()
+			g.step = Locking
+		} else if err != nil {
+			panic(err)
+		}
+	case GameOver:
+		g.step = Transition
+		lastStep = GameOver
+	}
+
+	if g.step != Menu && g.step != Transition {
+		g.doGravity()
+		g.soft = false
+
+		if g.command == ShiftLeft || g.command == ShiftRight {
+			if !g.dasLocked() {
+				g.dasFrames++
+			}
+
+			if g.dasFrames == 1 || g.dasFrames >= g.dasDelay {
+				if g.command == ShiftLeft {
+					g.tryShift(false)
+				} else {
+					g.tryShift(true)
+				}
+			}
+
+		} else {
+			if !g.dasLocked() {
+				g.dasFrames = 0
+			}
+
+			if g.command == RotateClockwise && g.lastCommand != RotateClockwise {
+				g.tryRotate(true)
+			} else if g.command == RotateCounterClockwise && g.lastCommand != RotateCounterClockwise {
+				g.tryRotate(false)
+			} else if g.command == ManualDrop {
+				g.softFrames++
+				g.soft = true
+				g.tryDrop()
 			}
 		}
 
-	} else {
-		if !g.dasLocked() {
-			g.dasFrames = 0
-		}
-
-		if g.command == RotateClockwise && g.lastCommand != RotateClockwise {
-			g.tryRotate(true)
-		} else if g.command == RotateCounterClockwise && g.lastCommand != RotateCounterClockwise {
-			g.tryRotate(false)
-		} else if g.command == ManualDrop {
-			g.softFrames++
-			g.soft = true
-			g.tryDrop()
+		// State machine
+		switch g.step {
+		case Locking:
+			g.activeFrames++
+			if g.checkLock() {
+				g.activeFrames = 0
+				g.activePiece, g.nextPiece = g.nextPiece, NextTGMRandomizer()
+				g.step = Clearing
+			}
+		case Clearing:
+			if g.checkClear() {
+				g.step = ClearDelay
+			} else {
+				g.step = Spawning
+			}
+		case ClearDelay:
+			g.clearFrames++
+			if g.clearFrames >= g.clearDelay {
+				g.clearFrames = 0
+				g.step = Spawning
+			}
+		case Spawning:
+			g.areFrames++
+			if g.areFrames >= g.areDelay {
+				g.areFrames = 0
+				g.softFrames = 0
+				g.SpawnTetromino(&g.activePiece)
+				g.step = Locking
+			}
 		}
 	}
 
 	g.lastCommand = g.command
-
-	// State machine
-	switch g.step {
-	case Locking:
-		g.activeFrames++
-		if g.checkLock() {
-			g.activeFrames = 0
-			g.step = Clearing
-		}
-	case Clearing:
-		if g.checkClear() {
-			g.step = ClearDelay
-		} else {
-			g.step = Spawning
-		}
-	case ClearDelay:
-		g.clearFrames++
-		if g.clearFrames >= g.clearDelay {
-			g.clearFrames = 0
-			g.step = Spawning
-		}
-	case Spawning:
-		g.areFrames++
-		if g.areFrames >= g.areDelay {
-			g.areFrames = 0
-			g.softFrames = 0
-			g.activePiece, g.nextPiece = g.nextPiece, NextTGMRandomizer()
-			g.SpawnTetromino(&g.activePiece)
-			g.step = Locking
-		}
-	}
 }
 
 // The players DAS charge is unmodified during line clear delay,
@@ -316,29 +412,6 @@ func (g *Game) collision(t Tetromino) bool {
 	return false
 }
 
-// Start initalizes game
-func (g *Game) Game() {
-	ResetTGMRandomizer()
-	g.level = 0
-	g.score = 0
-	g.combo = 1
-	g.bravo = 1
-	g.command = 0
-
-	g.areDelay, g.areFrames = 30, 0
-	g.dasDelay, g.dasFrames = 14, 0
-	g.lockDelay, g.lockFrames = 30, 0
-	g.activeFrames = 0
-	g.softFrames = 0
-	g.soft = false
-	g.clearFrames = 41
-	g.step = Locking
-
-	g.board = NewGrid(gStartX, gStartY, gSize, gXLength, gYLength)
-	g.activePiece, g.nextPiece = NextTGMRandomizer(), NextTGMRandomizer()
-	g.SpawnTetromino(&g.activePiece)
-}
-
 // SpawnTetromino on the grid
 func (g *Game) SpawnTetromino(t *Tetromino) {
 	t.Resize(g.board.cellSize)
@@ -442,6 +515,14 @@ func NextTGMRandomizer() Tetromino {
 	tgmFirstPiece = false
 
 	return generateTetronimo(tS)
+}
+
+var tgmAudio = map[string]string{
+	"start":    "src/gitlab.com/rangerdanger/tetris/assets/03_insert_coin.mp3",
+	"easy":     "src/gitlab.com/rangerdanger/tetris/assets/04_hardening_drops.mp3",
+	"hard":     "src/gitlab.com/rangerdanger/tetris/assets/05_hardening_drops_hard.mp3",
+	"menu":     "src/gitlab.com/rangerdanger/tetris/assets/07_menu.mp3",
+	"gameOver": "src/gitlab.com/rangerdanger/tetris/assets/08_game_over.mp3",
 }
 
 var tgmGravity = map[int]float64{

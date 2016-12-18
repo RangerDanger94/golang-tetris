@@ -1,7 +1,12 @@
 package main
 
 import (
+	"fmt"
+	"log"
+
 	"github.com/veandco/go-sdl2/sdl"
+
+	"gitlab.com/rangerdanger/sdlaudio"
 	"gitlab.com/rangerdanger/tetris/tetris"
 )
 
@@ -14,20 +19,19 @@ const delayTime uint32 = 1000.0 / fps
 const lockDelay int = 31
 
 func main() {
-	sdl.Init(sdl.INIT_EVERYTHING)
+	if err := sdl.Init(sdl.INIT_EVERYTHING); err != nil {
+		log.Println(err)
+		return
+	}
 
-	// rolls := make(map[int32]int)
-	// tetris.ResetTGMRandomizer()
-	// for i := 0; i < 10000; i++ {
-	// 	rolls[tetris.NextTGMRandomizer().Shape()]++
-	// }
-	// for _, v := range rolls {
-	// 	fmt.Printf("%v\n", v)
-	// }
+	if err := sdlaudio.Init(); err != nil {
+		log.Println(err)
+		return
+	}
 
 	// Create Window
 	window, err := sdl.CreateWindow(
-		"Tetris xTreme 2016",
+		"Tetris The Grand Master - Clone",
 		sdl.WINDOWPOS_UNDEFINED, sdl.WINDOWPOS_UNDEFINED,
 		screenWidth, screenHeight, sdl.WINDOW_SHOWN)
 
@@ -42,8 +46,8 @@ func main() {
 		panic(err)
 	}
 	defer renderer.Destroy()
-	var foo tetris.Game
-	foo.Game()
+	foo := tetris.NewGame()
+	foo.Init()
 
 	// Main Loop
 	running := true
@@ -65,6 +69,9 @@ func main() {
 					foo.BufferCommand(tetris.RotateCounterClockwise)
 				case sdl.K_SPACE:
 					foo.BufferCommand(tetris.ManualDrop)
+				case sdl.K_RETURN:
+					foo.BufferCommand(tetris.Start)
+					fmt.Println("STARTING")
 				}
 			case *sdl.KeyUpEvent:
 				foo.BufferCommand(0)
@@ -90,4 +97,5 @@ func main() {
 
 	// Clean Up
 	sdl.Quit()
+	sdlaudio.Quit()
 }
