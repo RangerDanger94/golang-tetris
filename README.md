@@ -4,6 +4,9 @@
 ## Goal
 Emulate Tetris rules as per [Tetris The Grand Master](http://harddrop.com/wiki/Tetris_The_Grand_Master)
 
+## Instructions
+Enter to start
+
 ### Package Dependencies
 * [https://github.com/veandco/go-sdl2](https://github.com/veandco/go-sdl2)
 * [https://github.com/rangerdanger94/sdlaudio](https://github.com/rangerdanger94/sdlaudio)
