@@ -10,12 +10,16 @@ type cell struct {
 
 // Grid - game board
 type Grid struct {
-	cellSize int32
-	x        int32
-	y        int32
-	width    int
-	height   int
-	cells    [][]cell
+	cellSize  int32
+	x         int32
+	y         int32
+	spawnX    int32
+	spawnY    int32
+	altSpawnX int32
+	altSpawnY int32
+	width     int
+	height    int
+	cells     [][]cell
 }
 
 // NewGrid creates new tetris grid
@@ -25,6 +29,8 @@ func NewGrid(x, y, cellSize int32, width, height int) Grid {
 	g.width, g.height = width, height
 	g.cellSize = cellSize
 	g.createGrid()
+	g.spawnX, g.spawnY = g.cells[0][3].rect.X, g.cells[0][3].rect.Y-g.cellSize
+	g.altSpawnX, g.altSpawnY = g.spawnX, g.spawnY-g.cellSize*2
 	return g
 }
 

@@ -297,6 +297,17 @@ func (t *Tetromino) Resize(d int32) {
 	t.size = d
 }
 
+// Above returns true if tetromino is above some y value
+func (t Tetromino) Above(y int32) bool {
+	for _, v := range t.blocks {
+		if v.Y < y {
+			return true
+		}
+	}
+
+	return false
+}
+
 func (t *Tetromino) move(x int32, y int32) {
 	t.setBounds(x, y)
 	t.setOrientation(t.orientation)

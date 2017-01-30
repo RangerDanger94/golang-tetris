@@ -114,7 +114,7 @@ func (g *Game) RunTime() string {
 	return fmt.Sprintf("%02f:%02f:%02f", since.Minutes(), since.Seconds(), since.Seconds()/1000.0)
 }
 
-// Sets the games active command
+// BufferCommand sets active command
 func (g *Game) BufferCommand(command int32) {
 	g.command = command
 }
@@ -158,9 +158,15 @@ func (g *Game) ProcessFrame() {
 			track = "gameOver"
 		}
 
-		if b, err := sdlaudio.MusicTransition(track); b {
-			g.Start()
-			g.step = Locking
+		if b, err := sdlaudio.PlayMusicOS(track); b {
+			if lastStep == Menu {
+				g.Start()
+				g.step = Locking
+			} else if lastStep == GameOver {
+				sdlaudio.PlayMusic("menu", -1)
+				g.step = Menu
+			}
+
 		} else if err != nil {
 			panic(err)
 		}
@@ -207,9 +213,15 @@ func (g *Game) ProcessFrame() {
 		case Locking:
 			g.activeFrames++
 			if g.checkLock() {
-				g.activeFrames = 0
-				g.activePiece, g.nextPiece = g.nextPiece, NextTGMRandomizer()
-				g.step = Clearing
+
+				// Check we aren't out of bounds
+				if g.activePiece.Above(g.board.Y()) {
+					g.step = GameOver
+				} else {
+					g.activeFrames = 0
+					g.activePiece, g.nextPiece = g.nextPiece, NextTGMRandomizer()
+					g.step = Clearing
+				}
 			}
 		case Clearing:
 			if g.checkClear() {
@@ -343,7 +355,7 @@ func (g *Game) checkClear() bool {
 	return cleared > 0
 }
 
-// Returns the rounded up value of a division
+// Return the rounded up value of a division
 func roof(foo, bar int) int {
 	if foo%bar == 0 {
 		return int(foo / bar)
@@ -352,7 +364,7 @@ func roof(foo, bar int) int {
 	return int(foo/bar) + 1
 }
 
-// return true if all cells in the row are occupied
+// Return true if all cells in the row are occupied
 func (g *Game) checkLineClear(row int) bool {
 	for col := range g.board.cells[row] {
 		if !g.board.cells[row][col].occupied {
@@ -363,7 +375,7 @@ func (g *Game) checkLineClear(row int) bool {
 	return true
 }
 
-// drop lines above cleared line
+// Drop lines above cleared line
 func (g *Game) clearLine(row int) {
 	g.board.cells[row] = g.board.createRow(row)
 
@@ -376,7 +388,7 @@ func (g *Game) clearLine(row int) {
 	}
 }
 
-// collisionRects returns the sdl.Rect elements from lockedPieces
+// CollisionRects returns the sdl.Rect elements from lockedPieces
 func (g Game) terminoIntersection(t Tetromino, r sdl.Rect) bool {
 	for _, v := range t.blocks {
 		if v.HasIntersection(&r) {
@@ -387,7 +399,7 @@ func (g Game) terminoIntersection(t Tetromino, r sdl.Rect) bool {
 	return false
 }
 
-// collision checks if a tetromino is colliding with the following
+// Collision checks if a tetromino is colliding with the following
 // 1. Locked pieces
 // 2. Board edges
 func (g *Game) collision(t Tetromino) bool {
@@ -415,14 +427,19 @@ func (g *Game) collision(t Tetromino) bool {
 // SpawnTetromino on the grid
 func (g *Game) SpawnTetromino(t *Tetromino) {
 	t.Resize(g.board.cellSize)
-	t.move(g.board.cells[0][3].rect.X, g.board.cells[0][3].rect.Y-g.board.CellSize())
+	t.move(g.board.spawnX, g.board.spawnY)
+
+	if g.collision(*t) {
+		t.move(g.board.altSpawnX, g.board.altSpawnY)
+	}
+
 	g.activeFrames = 1
 	if !g.nextLevelRequiresClear() {
 		g.level++
 	}
 }
 
-// tryShift will check and perform valid shift
+// TryShift will check and perform valid shift
 func (g *Game) tryShift(right bool) {
 	testPiece := g.activePiece
 	if right {
@@ -440,7 +457,7 @@ func (g *Game) tryShift(right bool) {
 	}
 }
 
-// tryRotate will check and perform valid rotations
+// TryRotate will check and perform valid rotations
 func (g *Game) tryRotate(clockwise bool) {
 	rotate := func() {
 		if clockwise {
@@ -518,11 +535,11 @@ func NextTGMRandomizer() Tetromino {
 }
 
 var tgmAudio = map[string]string{
-	"start":    "src/gitlab.com/rangerdanger/tetris/assets/03_insert_coin.mp3",
-	"easy":     "src/gitlab.com/rangerdanger/tetris/assets/04_hardening_drops.mp3",
-	"hard":     "src/gitlab.com/rangerdanger/tetris/assets/05_hardening_drops_hard.mp3",
-	"menu":     "src/gitlab.com/rangerdanger/tetris/assets/07_menu.mp3",
-	"gameOver": "src/gitlab.com/rangerdanger/tetris/assets/08_game_over.mp3",
+	"start":    "assets/03_insert_coin.mp3",
+	"easy":     "assets/04_hardening_drops.mp3",
+	"hard":     "assets/05_hardening_drops_hard.mp3",
+	"menu":     "assets/07_menu.mp3",
+	"gameOver": "assets/08_game_over.mp3",
 }
 
 var tgmGravity = map[int]float64{
